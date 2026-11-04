@@ -1,23 +1,28 @@
-import { Pixelify_Sans } from "next/font/google";
 import Link from "next/link";
+import { MarketingNav } from "@/components/marketing/marketing-nav";
+import { MobileMenu } from "@/components/marketing/mobile-menu";
 import { NestMark } from "@/components/nest-mark";
 import { PixelField } from "@/components/pixel-field";
 import { ThemeButton } from "@/components/theme-button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { pixel } from "@/lib/fonts";
 import { NEST_GUIDES_URL, REPO_URL } from "@/lib/site";
 
 const GRID_CELL = 30;
 
-const pixel = Pixelify_Sans({ variable: "--font-pixel", subsets: ["latin"] });
-
 const NAV = [
-  { href: "#product", label: "Product" },
-  { href: "#security", label: "Security" },
-  { href: "#faq", label: "FAQ" },
+  { href: "/#product", label: "Product" },
+  { href: "/#start", label: "Setup" },
+  { href: "/#security", label: "Security" },
+  { href: "/#faq", label: "FAQ" },
+  { href: "/docs", label: "Docs" },
 ];
 
 const small =
-  "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium tracking-[-0.01em] transition-colors active:scale-[0.97]";
+  "pressable inline-flex h-8 items-center whitespace-nowrap rounded-md px-2.5 text-[13px] font-medium tracking-[-0.01em] max-sm:h-10";
+
+const footerLink =
+  "w-fit py-1 text-muted-foreground transition-colors duration-(--dur-fast) hover:text-foreground max-sm:py-2.5";
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -31,35 +36,27 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <PixelField fixed tone="mono" cell={GRID_CELL} />
       <a
         href="#top"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:shadow-menu"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-(--z-skip) focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:shadow-menu"
       >
         Skip to content
       </a>
 
-      <header className="sticky top-0 z-50 bg-background-subtle/85 backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-8 px-6">
+      <header className="scroll-hairline sticky top-0 z-(--z-header) bg-background-subtle">
+        <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-3 px-6 md:gap-6 lg:gap-8">
           <Link href="/" aria-label="Nest Deploy, home" className="flex shrink-0 items-center gap-2 rounded-md outline-offset-4">
             <NestMark className="size-6" />
             <span className="font-pixel text-[19px] leading-none font-semibold whitespace-nowrap">Nest Deploy</span>
           </Link>
 
-          <nav aria-label="Page sections" className="hidden items-center gap-6 md:flex">
-            {NAV.map((n) => (
-              <a key={n.href} href={n.href} className="text-[14px] text-muted-foreground transition-colors hover:text-foreground">
-                {n.label}
-              </a>
-            ))}
-            <a href={REPO_URL} target="_blank" rel="noreferrer" className="text-[14px] text-muted-foreground transition-colors hover:text-foreground">
-              GitHub
-            </a>
-          </nav>
+          <MarketingNav items={NAV} repoUrl={REPO_URL} />
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1 sm:gap-2">
+            <MobileMenu items={NAV} repoUrl={REPO_URL} />
             <ThemeButton />
-            <Link href="/login" className={`${small} text-muted-foreground hover:text-foreground max-sm:hidden`}>
+            <Link href="/login" className={`${small} text-muted-foreground hover:bg-[var(--ds-gray-100)] hover:text-foreground max-sm:hidden`}>
               Log in
             </Link>
-            <Link href="/projects" className={`${small} shadow-border-base bg-background hover:bg-[var(--ds-gray-100)]`}>
+            <Link href="/projects" className={`${small} shadow-border-base bg-background hover:bg-[var(--ds-gray-100)] max-[419px]:hidden`}>
               Dashboard
             </Link>
           </div>
@@ -73,7 +70,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <footer>
         <div className="mx-auto grid max-w-[1400px] gap-12 px-6 py-16 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
           <div>
-            <Link href="/" className="flex items-center gap-2">
+            <Link href="/" className="flex w-fit items-center gap-2 rounded-md">
               <NestMark className="size-6" />
               <span className="font-pixel text-[19px] leading-none font-semibold">Nest Deploy</span>
             </Link>
@@ -82,32 +79,34 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               not run it.
             </p>
           </div>
-          <nav aria-label="Product" className="flex flex-col gap-3 text-[14px]">
-            <p className="font-medium">Product</p>
+          <nav aria-label="Product" className="flex flex-col text-[14px]">
+            <p className="mb-2 font-medium">Product</p>
             {NAV.map((n) => (
-              <a key={n.href} href={n.href} className="w-fit text-muted-foreground hover:text-foreground">
+              <a key={n.href} href={n.href} className={footerLink}>
                 {n.label}
               </a>
             ))}
           </nav>
-          <nav aria-label="Resources" className="flex flex-col gap-3 text-[14px]">
-            <p className="font-medium">Resources</p>
-            <a href={REPO_URL} target="_blank" rel="noreferrer" className="w-fit text-muted-foreground hover:text-foreground">
+          <nav aria-label="Resources" className="flex flex-col text-[14px]">
+            <p className="mb-2 font-medium">Resources</p>
+            <a href={REPO_URL} target="_blank" rel="noreferrer" className={footerLink}>
               Source on GitHub
+              <span className="sr-only"> (opens in a new tab)</span>
             </a>
-            <a href={NEST_GUIDES_URL} target="_blank" rel="noreferrer" className="w-fit text-muted-foreground hover:text-foreground">
+            <a href={NEST_GUIDES_URL} target="_blank" rel="noreferrer" className={footerLink}>
               Nest guides
+              <span className="sr-only"> (opens in a new tab)</span>
             </a>
           </nav>
-          <nav aria-label="Account" className="flex flex-col gap-3 text-[14px]">
-            <p className="font-medium">Account</p>
-            <Link href="/login" className="w-fit text-muted-foreground hover:text-foreground">
+          <nav aria-label="Account" className="flex flex-col text-[14px]">
+            <p className="mb-2 font-medium">Account</p>
+            <Link href="/login" className={footerLink}>
               Log in
             </Link>
-            <Link href="/projects" className="w-fit text-muted-foreground hover:text-foreground">
+            <Link href="/projects" className={footerLink}>
               Dashboard
             </Link>
-            <div className="mt-1">
+            <div className="mt-2">
               <ThemeToggle />
             </div>
           </nav>

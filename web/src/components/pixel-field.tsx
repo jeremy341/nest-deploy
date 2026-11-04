@@ -8,8 +8,10 @@ import { cn } from "@/lib/utils";
  *
  * Click or tap the background: a drop hits the grid and one circular wave
  * spreads outward from the point, a bright crest at the front with a short soft
- * wake, like a drop on still water. Only one wave runs at a time; a new click
- * replaces it, and nothing stays lit once it has passed. Clicks on fields,
+ * wake, like a drop on still water. Several waves can run at once: a new click
+ * never cuts an older wave short, and where two crests cross they add up and
+ * flare brighter, like ripples meeting on water. Nothing stays lit once the
+ * waves have passed. Clicks on fields,
  * buttons and links are ignored, so typing and using the page never splashes.
  * It never starts by itself, and there is no hover effect.
  *
@@ -39,7 +41,7 @@ const WAVE_SPEED = 520; // px per second
 const WAVE_LIFE = 3.4; // seconds until a drop has fully died away
 const FRONT = 32; // width of the leading crest
 const TAIL = 80; // how far the light trails off behind the crest
-const MAX_DROPS = 1; // one wave at a time
+const MAX_DROPS = 8; // enough for fast clicking; the oldest fades out first anyway
 
 /**
  * Brightness (0..1) of the drop at distance `d` from where it landed, `age`
@@ -174,12 +176,19 @@ export function PixelField({
         for (let i = 0; i < cols; i++) {
           const cx = (i + 0.5) * cell;
 
-          let wave = 0;
+          // Waves add up where they meet: the brightest one counts in full and
+          // every other one adds on top, so crossing crests flare instead of
+          // one wave simply hiding the other.
+          let peak = 0;
+          let sum = 0;
           for (const r of ripples) {
             const dx = cx - r.x;
             const dy = cy - r.y;
-            wave = Math.max(wave, dropWave(Math.sqrt(dx * dx + dy * dy), now - r.t0));
+            const v = dropWave(Math.sqrt(dx * dx + dy * dy), now - r.t0);
+            sum += v;
+            if (v > peak) peak = v;
           }
+          const wave = peak + (sum - peak) * 0.9;
 
           if (wave > 0.02) {
             drawLit(Math.min(1, wave), cx, cy);

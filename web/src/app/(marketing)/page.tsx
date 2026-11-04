@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { BuildLogs } from "@/components/build-logs";
 import { DeploymentsView } from "@/components/deployments-view";
+import { StepMarker, StepTrackLine } from "@/components/marketing/step-track";
+import { TerminalCta } from "@/components/marketing/terminal-cta";
+import { Reveal } from "@/components/motion/reveal";
 import { REPO_URL } from "@/lib/site";
 import { SAMPLE_DEPLOYMENTS, SAMPLE_LOG } from "@/lib/sample";
 import { cn } from "@/lib/utils";
@@ -16,6 +19,7 @@ const h2 =
   "font-pixel max-w-[17ch] text-[clamp(2.1rem,4vw,3.5rem)] leading-[1.02] font-medium text-balance";
 const pill =
   "inline-flex h-10 items-center rounded-full px-5 text-[14px] font-medium tracking-[-0.01em] transition-transform active:scale-[0.97]";
+const section = "scroll-mt-14 py-20 lg:py-28";
 
 /** A small square, the same shape as the pixels in the background. */
 function Square() {
@@ -72,12 +76,16 @@ function Hero() {
   );
 }
 
-/** A short note and a feature list beside a headline and the real UI. `flip` puts the note on the right. */
+/**
+ * A short note and a feature list beside a headline and the real UI. `flip`
+ * puts the note on the right. The frame has a header bar naming what is inside.
+ */
 function Showcase({
   id,
   note,
   features,
   title,
+  frameLabel,
   flip = false,
   children,
 }: {
@@ -85,19 +93,23 @@ function Showcase({
   note: string;
   features: string[];
   title: string;
+  /** The name in the frame's header bar. */
+  frameLabel: string;
   flip?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-14 py-24 lg:py-32">
-      <div
+    <section id={id} className={section}>
+      <Reveal
         className={cn(
           wrap,
           "grid gap-12 lg:gap-20",
           flip ? "lg:grid-cols-[minmax(0,1fr)_260px]" : "lg:grid-cols-[260px_minmax(0,1fr)]"
         )}
       >
-        <div className={cn("order-2 lg:self-end lg:pb-2", flip ? "lg:order-2" : "lg:order-1")}>
+        {/* Pinned to the top so the demo beside it can grow and shrink (collapsing the log,
+            filtering the list) without moving this text. */}
+        <div className={cn("order-2 lg:sticky lg:top-24 lg:self-start lg:pt-2", flip ? "lg:order-2" : "lg:order-1")}>
           <p className="max-w-[28ch] text-[18px] leading-7">{note}</p>
           <p className="font-pixel mt-10 text-[16px] text-muted-foreground">Features</p>
           <ul className="mt-3 space-y-2 text-[14px]">
@@ -109,7 +121,7 @@ function Showcase({
             ))}
           </ul>
         </div>
-        <div className={cn("order-1", flip ? "lg:order-1" : "lg:order-2")}>
+        <div className={cn("order-1 min-w-0", flip ? "lg:order-1" : "lg:order-2")}>
           <h2 className={h2}>{title}</h2>
           <div className="relative mt-12">
             <Plus className="-top-1.5 -left-1.5 z-10" />
@@ -117,11 +129,14 @@ function Showcase({
             <Plus className="-bottom-1.5 -left-1.5 z-10" />
             <Plus className="-right-1.5 -bottom-1.5 z-10" />
             <div className="overflow-hidden border bg-background">
+              <div className="flex h-10 items-center border-b px-4 font-mono text-[12px] text-muted-foreground">
+                {frameLabel}
+              </div>
               {children}
             </div>
           </div>
         </div>
-      </div>
+      </Reveal>
     </section>
   );
 }
@@ -135,8 +150,8 @@ const RUNTIMES = [
 
 function Runtimes() {
   return (
-    <section id="runtimes" className="scroll-mt-14 py-24 lg:py-32">
-      <div className={cn(wrap, "grid gap-12 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-20")}>
+    <section id="runtimes" className={section}>
+      <Reveal className={cn(wrap, "grid gap-12 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-20")}>
         <div className="lg:self-end lg:pb-2">
           <p className="max-w-[28ch] text-[18px] leading-7">
             No config file to write. Nest Deploy looks at your repo and works out how to build and
@@ -158,7 +173,7 @@ function Runtimes() {
             </Framed>
           </div>
         </div>
-      </div>
+      </Reveal>
     </section>
   );
 }
@@ -174,8 +189,8 @@ const INCLUDED = [
 
 function Included() {
   return (
-    <section id="included" className="scroll-mt-14 py-24 lg:py-32">
-      <div className={wrap}>
+    <section id="included" className={section}>
+      <Reveal className={wrap}>
         <h2 className={h2}>Everything else you would expect.</h2>
         <dl className="mt-14 grid gap-x-16 gap-y-12 md:grid-cols-2 lg:grid-cols-3">
           {INCLUDED.map(([term, text]) => (
@@ -185,7 +200,7 @@ function Included() {
             </div>
           ))}
         </dl>
-      </div>
+      </Reveal>
     </section>
   );
 }
@@ -196,20 +211,33 @@ const STEPS = [
   ["Import a repo", "Pick a repository, set the port your app listens on, and deploy. After that, every push does it."],
 ];
 
+/**
+ * A hairline runs across the top of the frame with one lit square at the start
+ * of each step. The squares switch on one after another as the section arrives.
+ * On a phone they sit beside the step titles instead.
+ */
 function Start() {
   return (
-    <section id="start" className="scroll-mt-14 py-24 lg:py-32">
-      <div className={wrap}>
+    <section id="start" className={section}>
+      <Reveal className={wrap}>
         <h2 className={h2}>Set up in three steps.</h2>
-        <ol className="mt-14 grid gap-10 md:grid-cols-3 md:gap-8">
-          {STEPS.map(([t, d]) => (
-            <li key={t} className="border-t border-foreground pt-5">
-              <h3 className="font-pixel text-[22px] leading-none font-medium">{t}</h3>
-              <p className="mt-3 max-w-[34ch] leading-7 text-muted-foreground">{d}</p>
-            </li>
-          ))}
-        </ol>
-      </div>
+        <div className="mt-14">
+          <Framed>
+            <ol className="grid divide-y md:grid-cols-3 md:divide-x md:divide-y-0">
+              {STEPS.map(([t, d], i) => (
+                <li key={t} className="relative p-6 md:pt-14 lg:p-8 lg:pt-16">
+                  <StepTrackLine />
+                  <h3 className="font-pixel flex items-center gap-3 text-[22px] leading-none font-medium">
+                    <StepMarker index={i} />
+                    {t}
+                  </h3>
+                  <p className="mt-3 max-w-[34ch] leading-7 text-muted-foreground">{d}</p>
+                </li>
+              ))}
+            </ol>
+          </Framed>
+        </div>
+      </Reveal>
     </section>
   );
 }
@@ -226,8 +254,8 @@ const LEDGER = [
 
 function Security() {
   return (
-    <section id="security" className="scroll-mt-14 py-24 lg:py-32">
-      <div className={wrap}>
+    <section id="security" className={section}>
+      <Reveal className={wrap}>
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:items-end lg:gap-20">
           <h2 className={cn(h2, "max-w-[20ch]")}>The key is yours to take back.</h2>
           <div>
@@ -239,9 +267,10 @@ function Security() {
               href={REPO_URL}
               target="_blank"
               rel="noreferrer"
-              className="mt-6 inline-block text-[14px] font-medium underline underline-offset-4"
+              className="link mt-4 inline-flex items-center py-2 text-[14px] font-medium max-sm:py-2.5"
             >
               Read the source
+              <span className="sr-only"> (opens in a new tab)</span>
             </a>
           </div>
         </div>
@@ -257,7 +286,7 @@ function Security() {
             </dl>
           </Framed>
         </div>
-      </div>
+      </Reveal>
     </section>
   );
 }
@@ -281,12 +310,19 @@ const FAQ = [
  */
 function Faq() {
   return (
-    <section id="faq" className="scroll-mt-14 py-24 lg:py-32">
-      <div className={cn(wrap, "grid gap-12 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-20")}>
+    <section id="faq" className={section}>
+      <Reveal className={cn(wrap, "grid gap-12 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-20")}>
         <div>
           <h2 className="font-pixel text-[clamp(2rem,3vw,2.75rem)] leading-none font-medium">Questions</h2>
           <p className="mt-5 max-w-[26ch] leading-7 text-muted-foreground">
             Short answers about cost, privacy and what it can and cannot do.
+          </p>
+          <p className="mt-4 max-w-[26ch] leading-7 text-muted-foreground">
+            For the full picture, read the{" "}
+            <Link href="/docs" className="link font-medium text-foreground">
+              docs
+            </Link>
+            .
           </p>
         </div>
         <Framed>
@@ -302,7 +338,7 @@ function Faq() {
             ))}
           </div>
         </Framed>
-      </div>
+      </Reveal>
     </section>
   );
 }
@@ -310,23 +346,38 @@ function Faq() {
 function Cta() {
   return (
     <section>
-      <div className={cn(wrap, "py-28 text-center lg:py-40")}>
-        <h2 className="font-pixel mx-auto max-w-[12ch] text-[clamp(2.75rem,6vw,5rem)] leading-[0.95] font-medium">
-          Deploy your first app.
-        </h2>
-        <div className="mt-9 flex flex-wrap justify-center gap-3">
-          <Link href="/projects" className={cn(pill, "bg-foreground text-background")}>
-            Start deploying
-          </Link>
-          <a
-            href={REPO_URL}
-            target="_blank"
-            rel="noreferrer"
-            className={cn(pill, "shadow-border-base bg-background hover:bg-[var(--ds-gray-100)]")}
-          >
-            View the source
-          </a>
-        </div>
+      <div className={cn(wrap, "py-24 lg:py-36")}>
+        <Reveal className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,480px)] lg:items-center lg:gap-20">
+          <div>
+            <h2 className="font-pixel max-w-[12ch] text-[clamp(2.75rem,6vw,5rem)] leading-[0.95] font-medium">
+              Deploy your first app.
+            </h2>
+            <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-1">
+              <Link
+                href="/projects"
+                className={cn(
+                  pill,
+                  "mr-1 bg-foreground text-background transition-[transform,background-color] duration-(--dur-fast) ease-snappy hover:bg-[color-mix(in_oklab,var(--foreground)_86%,var(--background))]"
+                )}
+              >
+                Start deploying
+              </Link>
+              <Link href="/docs" className="link inline-flex items-center py-2 text-[14px] font-medium max-sm:py-2.5">
+                Read the docs
+              </Link>
+              <a
+                href={REPO_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="link inline-flex items-center py-2 text-[14px] font-medium max-sm:py-2.5"
+              >
+                View the source
+                <span className="sr-only"> (opens in a new tab)</span>
+              </a>
+            </div>
+          </div>
+          <TerminalCta />
+        </Reveal>
       </div>
     </section>
   );
@@ -340,6 +391,7 @@ export default function HomePage() {
       <Showcase
         id="product"
         title="Every push becomes a release."
+        frameLabel="Deployments"
         note="Push to main and it is live. Push any other branch and it gets a preview on its own port."
         features={["Build sandbox", "Release switching", "Branch previews", "Streaming logs"]}
       >
@@ -358,6 +410,7 @@ export default function HomePage() {
       <Showcase
         flip
         title="Live only after it answers."
+        frameLabel="pixel-garden / a08c6f1"
         note="Nest Deploy waits for your app to respond on its port. If it never does, the previous release is put back."
         features={["Health checks", "Automatic revert", "Instant rollback", "Kept releases"]}
       >
