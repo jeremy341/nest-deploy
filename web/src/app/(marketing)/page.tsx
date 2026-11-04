@@ -274,19 +274,34 @@ const FAQ = [
   ["What can I deploy?", "Node.js, Python, static sites, or anything with a start command that listens on the PORT environment variable."],
 ];
 
+/**
+ * One native details element per question: it opens and closes with the
+ * keyboard and without scripts. The height eases open where the browser
+ * supports it (see .faq in globals.css).
+ */
 function Faq() {
   return (
     <section id="faq" className="scroll-mt-14 py-24 lg:py-32">
       <div className={cn(wrap, "grid gap-12 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-20")}>
-        <h2 className="font-pixel text-[clamp(2rem,3vw,2.75rem)] leading-none font-medium">Questions</h2>
-        <dl className="grid gap-x-14 gap-y-10 md:grid-cols-2">
-          {FAQ.map(([q, a]) => (
-            <div key={q}>
-              <dt className="font-pixel text-[19px] leading-6 font-medium">{q}</dt>
-              <dd className="mt-2 max-w-[48ch] leading-7 text-muted-foreground">{a}</dd>
-            </div>
-          ))}
-        </dl>
+        <div>
+          <h2 className="font-pixel text-[clamp(2rem,3vw,2.75rem)] leading-none font-medium">Questions</h2>
+          <p className="mt-5 max-w-[26ch] leading-7 text-muted-foreground">
+            Short answers about cost, privacy and what it can and cannot do.
+          </p>
+        </div>
+        <Framed>
+          <div className="faq divide-y">
+            {FAQ.map(([q, a]) => (
+              <details key={q}>
+                <summary>
+                  <span className="font-pixel text-[19px] leading-6 font-medium">{q}</span>
+                  <span aria-hidden="true" className="faq-icon" />
+                </summary>
+                <p>{a}</p>
+              </details>
+            ))}
+          </div>
+        </Framed>
       </div>
     </section>
   );

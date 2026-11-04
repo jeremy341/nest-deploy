@@ -418,3 +418,79 @@
     animation: hero-rise 0.6s cubic-bezier(0.23, 1, 0.32, 1) var(--rise-delay, 0.9s) backwards;
   }
 }
+
+/* Questions: stacked native details elements, as in a classic FAQ. */
+.faq summary {
+  display: flex;
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  transition: background-color 150ms ease-out;
+}
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+@media (hover: hover) {
+  .faq summary:hover {
+    background-color: var(--ds-gray-100);
+  }
+}
+.faq summary:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: -2px;
+}
+.faq p {
+  max-width: 62ch;
+  padding: 0 1.5rem 1.5rem;
+  line-height: 1.75;
+  color: var(--muted-foreground);
+}
+/* A plus that turns into a minus: two bars, the upright one folds away. */
+.faq-icon {
+  position: relative;
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+.faq-icon::before,
+.faq-icon::after {
+  content: "";
+  position: absolute;
+  background: currentColor;
+}
+.faq-icon::before {
+  left: 0;
+  top: 6px;
+  width: 14px;
+  height: 2px;
+}
+.faq-icon::after {
+  left: 6px;
+  top: 0;
+  width: 2px;
+  height: 14px;
+  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.faq details[open] .faq-icon::after {
+  transform: scaleY(0);
+}
+@supports (interpolate-size: allow-keywords) {
+  @media (prefers-reduced-motion: no-preference) {
+    :root {
+      interpolate-size: allow-keywords;
+    }
+    .faq details::details-content {
+      block-size: 0;
+      overflow: hidden;
+      transition:
+        block-size 250ms cubic-bezier(0.23, 1, 0.32, 1),
+        content-visibility 250ms allow-discrete;
+    }
+    .faq details[open]::details-content {
+      block-size: auto;
+    }
+  }
+}

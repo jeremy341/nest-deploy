@@ -6,18 +6,17 @@ import { cn } from "@/lib/utils";
 /**
  * A grid of pixels that reacts to a click.
  *
- * Click or tap anywhere: a drop hits the grid. The pixels light up and one
- * circular wave spreads outward from the point, a bright crest at the front
- * with a short soft wake, like a drop on still water. The pixel you hit stays
- * lit a while longer. Only one wave runs at a time; a new click replaces it.
- * Left alone, an occasional drop falls by itself (optional). There is no hover
- * effect.
+ * Click or tap the background: a drop hits the grid and one circular wave
+ * spreads outward from the point, a bright crest at the front with a short soft
+ * wake, like a drop on still water. Only one wave runs at a time; a new click
+ * replaces it, and nothing stays lit once it has passed. Clicks on fields,
+ * buttons and links are ignored, so typing and using the page never splashes.
+ * It never starts by itself, and there is no hover effect.
  *
  * It draws a live canvas that only paints pixels that are currently lit (the
- * hairlines themselves are drawn by the base canvas, or by the page when
- * `fixed`). The loop sleeps when nothing is moving, and also when the grid is
- * offscreen or the tab hidden. With reduced motion there are no waves: a click
- * lights a block that stays until the next click.
+ * hairlines are drawn by the base canvas, or by the page when `fixed`). The
+ * loop sleeps when nothing is moving, and when the grid is offscreen or the tab
+ * hidden. With reduced motion there are no waves at all.
  *
  * With `fixed` it covers the viewport behind the whole page. Clicks are heard
  * on the window, so the canvas never blocks anything.
@@ -26,10 +25,6 @@ import { cn } from "@/lib/utils";
 type Props = {
   /** Distance between pixel centres, in CSS pixels. */
   cell?: number;
-  /** Let a drop fall now and then without any input. */
-  autoDrops?: boolean;
-  /** Where the first drop lands, as fractions of the width and height. Default: random. */
-  intro?: [number, number];
   /** "mono" lights pixels in the page's text colour instead of the accent. */
   tone?: "default" | "mono";
   /** Cover the viewport behind the page instead of filling the parent. */
@@ -74,8 +69,6 @@ function parseColor(value: string): [number, number, number, number] {
 
 export function PixelField({
   cell = 18,
-  autoDrops = false,
-  intro,
   tone = "default",
   fixed = false,
   className,
@@ -101,15 +94,12 @@ export function PixelField({
     let dpr = 1;
     let cols = 0;
     let rows = 0;
-    let glow = new Float32Array(0);
     let dot: RGB = [128, 128, 128];
     let dotAlpha = 0.2;
     let brand: RGB = [255, 90, 31];
     let ripples: Ripple[] = [];
     let visible = true;
     let raf = 0;
-    let last = 0;
-    let drops: ReturnType<typeof setTimeout> | undefined;
 
     const px = (v: number) => Math.round(v * dpr) / dpr;
     /** In `fixed` mode the grid scrolls with the page, so the cells sit this far up. */
@@ -152,7 +142,6 @@ export function PixelField({
       }
       cols = Math.ceil(w / cell);
       rows = Math.ceil(h / cell) + (fixed ? 1 : 0);
-      glow = new Float32Array(cols * rows);
       readColors();
       paintBase();
       wake();
@@ -171,10 +160,7 @@ export function PixelField({
 
     function frame(t: number) {
       raf = 0;
-      const dt = Math.min(0.05, (t - last) / 1000 || 0.016);
-      last = t;
       const now = t / 1000;
-      const keepG = Math.exp(-dt / 1.7);
 
       ripples = ripples.filter((r) => now - r.t0 < WAVE_LIFE);
       lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -186,11 +172,7 @@ export function PixelField({
       for (let j = 0; j < rows; j++) {
         const cy = (j + 0.5) * cell + oy;
         for (let i = 0; i < cols; i++) {
-          const k = j * cols + i;
           const cx = (i + 0.5) * cell;
-
-          const gl = glow[k] * keepG;
-          glow[k] = gl < 0.012 ? 0 : gl;
 
           let wave = 0;
           for (const r of ripples) {
@@ -199,9 +181,8 @@ export function PixelField({
             wave = Math.max(wave, dropWave(Math.sqrt(dx * dx + dy * dy), now - r.t0));
           }
 
-          const v = Math.max(glow[k], wave);
-          if (v > 0.02) {
-            drawLit(Math.min(1, v), cx, cy);
+          if (wave > 0.02) {
+            drawLit(Math.min(1, wave), cx, cy);
             alive = true;
           }
         }
@@ -210,44 +191,15 @@ export function PixelField({
       if (alive && visible && !document.hidden) raf = requestAnimationFrame(frame);
     }
 
-    /** Reduced motion: paint the current state once, no animation. */
-    function drawStatic() {
-      lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      lctx.clearRect(0, 0, w, h);
-      const oy = originY();
-      for (let j = 0; j < rows; j++) {
-        for (let i = 0; i < cols; i++) {
-          const k = j * cols + i;
-          const v = glow[k];
-          if (v > 0) drawLit(v, (i + 0.5) * cell, (j + 0.5) * cell + oy);
-        }
-      }
-    }
-
     function wake() {
-      if (reduced) {
-        drawStatic();
-        return;
-      }
+      if (reduced) return;
       if (!raf && visible && !document.hidden) raf = requestAnimationFrame(frame);
     }
 
     function addDrop(x: number, y: number) {
       if (reduced) return;
-      glow.fill(0); // a new drop replaces the last one entirely
       ripples.push({ x, y, t0: performance.now() / 1000 });
       if (ripples.length > MAX_DROPS) ripples.shift();
-      const i = Math.min(cols - 1, Math.max(0, Math.floor(x / cell)));
-      const j = Math.min(rows - 1, Math.max(0, Math.floor((y - originY()) / cell)));
-      for (let dj = -1; dj <= 1; dj++) {
-        for (let di = -1; di <= 1; di++) {
-          const ii = i + di;
-          const jj = j + dj;
-          if (ii < 0 || jj < 0 || ii >= cols || jj >= rows) continue;
-          const k = jj * cols + ii;
-          glow[k] = Math.max(glow[k], di === 0 && dj === 0 ? 1 : 0.5);
-        }
-      }
       wake();
     }
 
@@ -258,35 +210,16 @@ export function PixelField({
       return { x, y, inside: x >= 0 && y >= 0 && x <= r.width && y <= r.height };
     }
 
+    /** Things you click to use, not to make a splash: fields, buttons, links. */
+    const INTERACTIVE = "input, textarea, select, button, a, label, summary, [contenteditable], [role='button']";
+
     const onDown = (e: PointerEvent) => {
+      if (reduced) return;
+      if (e.target instanceof Element && e.target.closest(INTERACTIVE)) return;
       const p = toLocal(e);
       if (!p.inside) return;
-      if (reduced) {
-        const i = Math.floor(p.x / cell);
-        const j = Math.floor((p.y - originY()) / cell);
-        if (i >= 0 && j >= 0 && i < cols && j < rows) {
-          const k = j * cols + i;
-          glow[k] = glow[k] > 0 ? 0 : 1;
-        }
-        wake();
-        return;
-      }
       addDrop(p.x, p.y);
     };
-    function scheduleDrop(first = false) {
-      if (!autoDrops || reduced) return;
-      drops = setTimeout(
-        () => {
-          if (visible && !document.hidden && w > 0 && ripples.length === 0) {
-            if (first && intro) addDrop(w * intro[0], h * intro[1]);
-            else addDrop(w * (0.2 + Math.random() * 0.6), h * (0.2 + Math.random() * 0.6));
-          }
-          scheduleDrop();
-        },
-        first ? (intro ? 700 : 900) : 7000 + Math.random() * 6000
-      );
-    }
-
     const ro = new ResizeObserver(resize);
     ro.observe(host);
     const io = new IntersectionObserver(
@@ -308,11 +241,9 @@ export function PixelField({
     document.addEventListener("visibilitychange", wake);
     if (fixed) window.addEventListener("scroll", wake, { passive: true });
     resize();
-    scheduleDrop(true);
 
     return () => {
       if (raf) cancelAnimationFrame(raf);
-      if (drops) clearTimeout(drops);
       ro.disconnect();
       io.disconnect();
       mo.disconnect();
@@ -320,7 +251,7 @@ export function PixelField({
       document.removeEventListener("visibilitychange", wake);
       window.removeEventListener("scroll", wake);
     };
-  }, [cell, autoDrops, tone, fixed, intro]);
+  }, [cell, tone, fixed]);
 
   return (
     <div
