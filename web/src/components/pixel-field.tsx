@@ -95,8 +95,10 @@ export function PixelField({
     const bctx = base.getContext("2d")!;
     const lctx = live.getContext("2d")!;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const REST = Math.max(2, Math.round(cell / 7)); // resting pixel size
-    const max = cell - Math.max(4, Math.round(cell / 6)); // biggest a lit pixel gets
+    // Resting pixels are boxes that almost fill their cell; lit ones swell to fill it.
+    const gap = Math.max(2, Math.round(cell / 8));
+    const REST = cell - gap * 2;
+    const max = cell - Math.max(1, Math.round(gap / 2));
 
     let w = 0;
     let h = 0;
@@ -122,14 +124,14 @@ export function PixelField({
       if (tone === "mono") {
         const ink = parseColor(cs.color);
         dot = [ink[0], ink[1], ink[2]];
-        dotAlpha = 0.14;
+        dotAlpha = 0.045;
         brand = [ink[0], ink[1], ink[2]];
         return;
       }
       const d = parseColor(cs.getPropertyValue("--pixel-dot") || "rgb(128 128 128 / 0.2)");
       const b = parseColor(cs.getPropertyValue("--brand") || "#ff5a1f");
       dot = [d[0], d[1], d[2]];
-      dotAlpha = d[3];
+      dotAlpha = Math.min(d[3], 0.045); // boxes are large, so keep them faint
       brand = [b[0], b[1], b[2]];
     }
 
