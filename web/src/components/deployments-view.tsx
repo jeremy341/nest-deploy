@@ -7,7 +7,13 @@ import type { Deployment } from "@/lib/mock";
 
 type Filter = "all" | "ready" | "building" | "error";
 
-export function DeploymentsView({ deployments }: { deployments: Deployment[] }) {
+export function DeploymentsView({
+  deployments,
+  showProject = true,
+}: {
+  deployments: Deployment[];
+  showProject?: boolean;
+}) {
   const [filter, setFilter] = useState<Filter>("all");
   const visible =
     filter === "all"
@@ -38,9 +44,13 @@ export function DeploymentsView({ deployments }: { deployments: Deployment[] }) 
           </p>
         </div>
       ) : (
-        <ul className="hairline-y overflow-hidden rounded-lg border bg-card">
+        <ul className="hairline-y overflow-hidden rounded-lg bg-card shadow-border-small">
           {visible.map((d) => (
-            <DeploymentRow key={`${d.projectSlug}-${d.id}`} deployment={d} />
+            <DeploymentRow
+              key={`${d.projectSlug}-${d.id}`}
+              deployment={d}
+              showProject={showProject}
+            />
           ))}
         </ul>
       )}

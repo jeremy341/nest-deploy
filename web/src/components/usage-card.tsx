@@ -5,10 +5,10 @@ export function UsageCard() {
   return (
     <section
       aria-labelledby="usage-heading"
-      className="rounded-lg border bg-card"
+      className="rounded-lg bg-card shadow-border-small"
     >
       <div className="border-b px-4 py-3">
-        <h2 id="usage-heading" className="text-sm font-medium">
+        <h2 id="usage-heading" className="text-sm font-medium tracking-[-0.02em]">
           Container usage
         </h2>
         <p className="mt-0.5 text-[13px] text-muted-foreground">
@@ -22,7 +22,7 @@ export function UsageCard() {
           return (
             <li key={item.label} className="px-4 py-3">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-[13px]">{item.label}</span>
+                <span>{item.label}</span>
                 <span className="tabular font-mono text-[12px] text-muted-foreground">
                   {item.used} / {item.total} {item.unit}
                 </span>

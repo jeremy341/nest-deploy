@@ -28,7 +28,7 @@ export function Segmented<T extends string>({
       role="group"
       aria-label={label}
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-md border border-border bg-background p-0.5",
+        "inline-flex items-center gap-0.5 shadow-border-base rounded-md bg-background p-0.5",
         className
       )}
     >
@@ -42,9 +42,9 @@ export function Segmented<T extends string>({
             aria-label={option.iconOnly ? option.label : undefined}
             onClick={() => onChange(option.value)}
             className={cn(
-              "inline-flex h-7 items-center justify-center gap-1.5 rounded-[4px] px-2 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-4",
+              "inline-flex h-7 items-center justify-center gap-1.5 rounded-[4px] px-2 text-[13px] font-medium tracking-[-0.02em] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-4",
               active
-                ? "bg-accent text-foreground"
+                ? "bg-[var(--ds-gray-200)] text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >

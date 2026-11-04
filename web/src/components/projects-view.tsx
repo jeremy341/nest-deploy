@@ -10,15 +10,10 @@ import {
 } from "@phosphor-icons/react";
 import { ProjectCard } from "@/components/project-card";
 import { Segmented } from "@/components/segmented";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Project } from "@/lib/mock";
+import { cn } from "@/lib/utils";
 
 type View = "grid" | "list";
 
@@ -71,20 +66,13 @@ export function ProjectsView({ projects }: { projects: Project[] }) {
             },
           ]}
         />
-        <DropdownMenu>
-          <DropdownMenuTrigger render={<Button className="h-9 px-3" />}>
-            Add New
-            <PlusIcon />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem render={<Link href="/connect" />}>
-              Connect a server
-            </DropdownMenuItem>
-            <DropdownMenuItem render={<Link href="/domains" />}>
-              Domain
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Link
+          href="/new"
+          className={cn(buttonVariants(), "h-9 px-3")}
+        >
+          Add New
+          <PlusIcon />
+        </Link>
       </div>
 
       {visible.length === 0 ? (
@@ -105,7 +93,7 @@ export function ProjectsView({ projects }: { projects: Project[] }) {
         <ul
           className={
             view === "grid"
-              ? "grid gap-4 md:grid-cols-2"
+              ? "grid gap-4 min-[1500px]:grid-cols-2"
               : "flex flex-col gap-3"
           }
         >

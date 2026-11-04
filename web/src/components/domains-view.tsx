@@ -45,7 +45,7 @@ export function DomainsView({
       <form
         onSubmit={add}
         noValidate
-        className="rounded-lg border bg-card"
+        className="rounded-lg bg-card shadow-border-small"
         aria-label="Add a domain"
       >
         <div className="grid gap-4 p-4 sm:grid-cols-[1fr_160px]">
@@ -98,7 +98,7 @@ export function DomainsView({
         </div>
       </form>
 
-      <ul className="hairline-y overflow-hidden rounded-lg border bg-card">
+      <ul className="hairline-y overflow-hidden rounded-lg bg-card shadow-border-small">
         {domains.map((d) => (
           <li
             key={d.domain}

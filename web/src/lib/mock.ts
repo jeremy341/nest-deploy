@@ -271,3 +271,52 @@ export function deploymentsFor(slug: string) {
 export function projectName(slug: string) {
   return getProject(slug)?.name ?? slug;
 }
+
+export function getDeployment(slug: string, id: string) {
+  return deployments.find((d) => d.projectSlug === slug && d.id === id);
+}
+
+/** The newest ready Production deployment of a project is the live one. */
+export function isCurrentProduction(d: Deployment) {
+  if (d.env !== "Production" || d.state !== "ready") return false;
+  const live = deploymentsFor(d.projectSlug).find(
+    (x) => x.env === "Production" && x.state === "ready"
+  );
+  return live?.id === d.id;
+}
+
+export type BuildLine = { time: string; text: string; tone?: "warn" | "error" };
+
+/** Sample build output for a deployment. Not real output. */
+export function buildLogFor(d: Deployment): BuildLine[] {
+  const base: BuildLine[] = [
+    { time: "14:02:11.204", text: `Cloning github.com/${getProject(d.projectSlug)?.repo ?? "owner/repo"} (Branch: ${d.branch}, Commit: ${d.id})` },
+    { time: "14:02:12.870", text: "Cloning completed: 1.2s" },
+    { time: "14:02:13.011", text: "Restored build cache from previous deployment" },
+    { time: "14:02:13.402", text: "Running install command: pnpm install --frozen-lockfile" },
+    { time: "14:02:14.118", text: "Lockfile is up to date, resolution step is skipped" },
+    { time: "14:02:19.640", text: "Packages: +312" },
+    { time: "14:02:27.002", text: "Done in 13.6s" },
+    { time: "14:02:27.350", text: "Running build command: pnpm build" },
+  ];
+  if (d.state === "error") {
+    return [
+      ...base,
+      { time: "14:02:31.771", text: "ReferenceError: OffscreenCanvas is not defined", tone: "error" },
+      { time: "14:02:31.772", text: "Health check on the new release failed after 30s", tone: "error" },
+      { time: "14:02:31.790", text: "Keeping the previous release live", tone: "warn" },
+    ];
+  }
+  if (d.state === "building") {
+    return [...base, { time: "14:02:41.007", text: "Compiling..." }];
+  }
+  return [
+    ...base,
+    { time: "14:02:29.115", text: "Peer dependency mismatch: zod@3 expected, found zod@4", tone: "warn" },
+    { time: "14:02:41.007", text: "Compiled successfully" },
+    { time: "14:02:41.480", text: "Creating release directory and switching the current symlink" },
+    { time: "14:02:42.003", text: "Restarting service and waiting for the health check" },
+    { time: "14:02:44.512", text: "Health check passed on port " + (getProject(d.projectSlug)?.port ?? 3000) },
+    { time: "14:02:44.620", text: "Deployment completed" },
+  ];
+}

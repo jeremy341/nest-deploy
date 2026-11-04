@@ -14,21 +14,27 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { server } from "@/lib/mock";
+import { cn } from "@/lib/utils";
 
-export function UserMenu() {
+/** Account row at the bottom of the sidebar. */
+export function UserMenu({ className }: { className?: string }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Account menu"
-        className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+        className={cn(
+          "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left font-medium tracking-[-0.02em] outline-none transition-colors hover:bg-[var(--ds-gray-100)] aria-expanded:bg-[var(--ds-gray-100)]",
+          className
+        )}
       >
-        <Avatar>
-          <AvatarFallback className="text-xs font-medium uppercase">
+        <Avatar size="sm">
+          <AvatarFallback className="text-[10px] font-medium uppercase">
             {server.username.slice(0, 2)}
           </AvatarFallback>
         </Avatar>
+        <span className="min-w-0 flex-1 truncate">{server.username}</span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-60" align="end">
+      <DropdownMenuContent className="w-60" align="start" side="top">
         <DropdownMenuGroup>
           <DropdownMenuLabel>Signed in as {server.username}</DropdownMenuLabel>
         </DropdownMenuGroup>

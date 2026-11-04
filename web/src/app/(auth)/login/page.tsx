@@ -14,7 +14,7 @@ export default function LoginPage() {
           Log in to Nest Deploy
         </h1>
 
-        <div className="mt-8 rounded-lg border bg-card p-5">
+        <div className="mt-8 rounded-lg bg-card shadow-border-small p-5">
           <Link
             href="/"
             className={cn(buttonVariants({ size: "lg" }), "w-full")}

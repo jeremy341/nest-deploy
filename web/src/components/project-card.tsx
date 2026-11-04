@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { GitBranchIcon, GithubLogoIcon } from "@phosphor-icons/react/dist/ssr";
+import {
+  GitCommitIcon,
+  GithubLogoIcon,
+} from "@phosphor-icons/react/dist/ssr";
 import { StatusDot } from "@/components/status-dot";
 import type { Project } from "@/lib/mock";
 
@@ -7,39 +10,35 @@ export function ProjectCard({ project }: { project: Project }) {
   return (
     <Link
       href={`/projects/${project.slug}`}
-      className="group flex flex-col gap-4 rounded-lg border bg-card p-4 outline-none transition-colors hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring/60"
+      className="group flex h-full flex-col gap-4 rounded-lg bg-card p-4 shadow-border-small outline-none transition-shadow hover:shadow-menu"
     >
       <div className="flex items-start gap-3">
         <div
           aria-hidden="true"
-          className="flex size-10 shrink-0 items-center justify-center rounded-md border bg-muted text-sm font-semibold uppercase"
+          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-foreground text-sm font-semibold text-background uppercase"
         >
           {project.name.slice(0, 1)}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">{project.name}</p>
-          <p className="truncate text-[13px] text-muted-foreground">
-            {project.domain}
+          <p className="truncate font-medium tracking-[-0.02em]">
+            {project.name}
           </p>
+          <p className="truncate text-muted-foreground">{project.domain}</p>
         </div>
-        <StatusDot state={project.state} showLabel={false} className="pt-1.5" />
+        <StatusDot state={project.state} showLabel={false} className="pt-2" />
       </div>
 
-      <span className="inline-flex w-fit max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px]">
-        <GithubLogoIcon className="size-3.5 shrink-0" />
+      <p className="flex min-w-0 items-center gap-2">
+        <GitCommitIcon className="size-4 shrink-0 text-muted-foreground" />
+        <span className="truncate">{project.commit}</span>
+      </p>
+
+      <p className="mt-auto flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
+        <GithubLogoIcon className="size-4 shrink-0" />
         <span className="truncate">{project.repo}</span>
-      </span>
-
-      <div>
-        <p className="truncate text-[13px]">{project.commit}</p>
-        <p className="mt-1 flex items-center gap-1.5 text-[13px] text-muted-foreground">
-          <span>{project.age} on</span>
-          <GitBranchIcon className="size-3.5 shrink-0" />
-          <span className="truncate font-mono text-[12px]">
-            {project.branch}
-          </span>
-        </p>
-      </div>
+        <span aria-hidden="true">·</span>
+        <span className="shrink-0">{project.age}</span>
+      </p>
     </Link>
   );
 }

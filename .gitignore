@@ -5,3 +5,6 @@ node_modules/
 *.key
 *.pem
 .DS_Store
+
+# Local-only captures of Vercel's dashboard (not ours to redistribute)
+reference/
