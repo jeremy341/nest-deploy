@@ -16,3 +16,8 @@ Newest decisions are at the bottom. Each entry says what was decided and why. Wh
 
 - `planning/01-original-idea.md` still describes an agent running in each user's container in its architecture section. Decision 4 replaces it with the SSH key flow. Update that section when the architecture is finalized.
 - The planning documents keep their original `[[wiki links]]`. They don't resolve on GitHub, so treat them as plain references to the notes they name.
+
+## UI stack (added 2026-11-04)
+
+10. **Next.js, TypeScript, Tailwind v4, shadcn/ui, Geist.** There is no official Vercel component library, so the dashboard is built from the public pieces closest to it: shadcn/ui components (copied into the repo and restyled), Geist Sans and Mono, and Geist-style color tokens. Icons come from Phosphor. See `web/README.md` for the design rules.
+11. **First UI pass uses sample data only.** Every screen reads from `web/src/lib/mock.ts`. Sign-in, the SSH test, and deploy actions are placeholders until the backend exists.

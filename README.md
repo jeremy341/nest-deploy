@@ -19,6 +19,10 @@ The other planning files are the research and history behind those decisions.
 - Connect GitHub repositories
 - Deploy, view logs, and roll back projects on Nest
 
+## Code
+
+The web app is in [web/](web/). Its README covers the stack, design rules, and how to run it.
+
 ## Not in this repo
 
 The raw Vercel documentation captures and the full feature catalogs (about 17 MB) stay in the planning vault. Add them here if they're needed.
