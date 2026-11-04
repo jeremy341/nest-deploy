@@ -68,22 +68,6 @@ function Hero() {
           </a>
         </div>
       </div>
-
-      <div className={cn(wrap, "pb-10")}>
-        <div className="relative mx-auto max-w-[620px]">
-          <Plus className="-top-1.5 -left-1.5 z-10" />
-          <Plus className="-top-1.5 -right-1.5 z-10" />
-          <Plus className="-bottom-1.5 -left-1.5 z-10" />
-          <Plus className="-right-1.5 -bottom-1.5 z-10" />
-          <div className="border bg-background px-6 py-5 text-left font-mono text-[14px] leading-7">
-            <p>
-              <span className="text-muted-foreground select-none">$ </span>git push origin main
-            </p>
-            <p className="text-muted-foreground">Built my-app in 48s, uploaded to your Nest</p>
-            <p>Live on port 3000</p>
-          </div>
-        </div>
-      </div>
     </section>
   );
 }
