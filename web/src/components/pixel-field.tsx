@@ -4,22 +4,20 @@ import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * A grid of pixels that reacts to you.
+ * A grid of pixels that reacts to a click.
  *
- *  - Move over it: pixels swell and take the accent colour, then cool down
- *    behind the cursor like a trail.
- *  - Click or tap anywhere: a drop hits the grid. The pixels light up and a
- *    circular wave spreads outward from the point, a bright crest at the front
- *    with a few fading rings trailing behind it, like a drop on still water.
- *    The pixel you hit stays lit a while longer.
- *  - Left alone, an occasional drop falls by itself (optional).
+ * Click or tap anywhere: a drop hits the grid. The pixels light up and one
+ * circular wave spreads outward from the point, a bright crest at the front
+ * with a short soft wake, like a drop on still water. The pixel you hit stays
+ * lit a while longer. Only one wave runs at a time; a new click replaces it.
+ * Left alone, an occasional drop falls by itself (optional). There is no hover
+ * effect.
  *
- * It draws two canvases: a static layer of resting dots, and a live layer
- * that only paints pixels that are currently lit. The loop sleeps when
- * nothing is moving, and also when the grid is offscreen or the tab hidden.
- * With reduced motion there are no waves and no trails: hovering lights the
- * pixel under the cursor, and a click lights a block that stays until the next
- * click.
+ * It draws a live canvas that only paints pixels that are currently lit (the
+ * hairlines themselves are drawn by the base canvas, or by the page when
+ * `fixed`). The loop sleeps when nothing is moving, and also when the grid is
+ * offscreen or the tab hidden. With reduced motion there are no waves: a click
+ * lights a block that stays until the next click.
  *
  * With `fixed` it covers the viewport behind the whole page. Clicks are heard
  * on the window, so the canvas never blocks anything.
@@ -42,17 +40,14 @@ type Ripple = { x: number; y: number; t0: number };
 
 const WAVE_SPEED = 520; // px per second
 const WAVE_LIFE = 3.4; // seconds until a drop has fully died away
-const FRONT = 34; // width of the leading crest
-const RING_GAP = 84; // distance between the rings behind the crest
-const TAIL = 230; // how far behind the crest the rings reach
-const MAX_DROPS = 8;
-const HOVER_RADIUS = 120;
+const FRONT = 32; // width of the leading crest
+const TAIL = 80; // how far the light trails off behind the crest
+const MAX_DROPS = 1; // one wave at a time
 
 /**
- * Brightness (0..1) of one drop at distance `d` from where it landed, `age`
- * seconds after it landed. Right at the front there is a sharp crest. Behind
- * it the surface rises and falls in rings that get weaker with distance from
- * the crest. The whole thing thins out as it spreads and as it ages.
+ * Brightness (0..1) of the drop at distance `d` from where it landed, `age`
+ * seconds after it landed. One ring: a sharp crest at the front with a short
+ * soft wake behind it. It thins out as it spreads and as it ages.
  */
 function dropWave(d: number, age: number): number {
   const radius = age * WAVE_SPEED;
@@ -60,10 +55,7 @@ function dropWave(d: number, age: number): number {
   if (behind < -FRONT * 2.5 || behind > TAIL * 4) return 0;
   const strength =
     Math.pow(Math.max(0, 1 - age / WAVE_LIFE), 1.4) / Math.sqrt(1 + radius / 240);
-  const shape =
-    behind < 0
-      ? Math.exp(-((behind / FRONT) ** 2))
-      : Math.exp(-behind / TAIL) * (0.5 + 0.5 * Math.cos((behind / RING_GAP) * 2 * Math.PI));
+  const shape = behind < 0 ? Math.exp(-((behind / FRONT) ** 2)) : Math.exp(-behind / TAIL);
   return shape * strength * 1.25;
 }
 
@@ -106,13 +98,11 @@ export function PixelField({
     let dpr = 1;
     let cols = 0;
     let rows = 0;
-    let trail = new Float32Array(0);
     let glow = new Float32Array(0);
     let dot: RGB = [128, 128, 128];
     let dotAlpha = 0.2;
     let brand: RGB = [255, 90, 31];
     let ripples: Ripple[] = [];
-    let pointer: { x: number; y: number } | null = null;
     let visible = true;
     let raf = 0;
     let last = 0;
@@ -159,7 +149,6 @@ export function PixelField({
       }
       cols = Math.ceil(w / cell);
       rows = Math.ceil(h / cell) + (fixed ? 1 : 0);
-      trail = new Float32Array(cols * rows);
       glow = new Float32Array(cols * rows);
       readColors();
       paintBase();
@@ -182,14 +171,13 @@ export function PixelField({
       const dt = Math.min(0.05, (t - last) / 1000 || 0.016);
       last = t;
       const now = t / 1000;
-      const keepT = Math.exp(-dt / 0.34);
       const keepG = Math.exp(-dt / 1.7);
 
       ripples = ripples.filter((r) => now - r.t0 < WAVE_LIFE);
       lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       lctx.clearRect(0, 0, w, h);
 
-      let alive = ripples.length > 0 || pointer !== null;
+      let alive = ripples.length > 0;
 
       const oy = originY();
       for (let j = 0; j < rows; j++) {
@@ -198,17 +186,6 @@ export function PixelField({
           const k = j * cols + i;
           const cx = (i + 0.5) * cell;
 
-          let hover = 0;
-          if (pointer) {
-            const dx = cx - pointer.x;
-            const dy = cy - pointer.y;
-            const d2 = dx * dx + dy * dy;
-            if (d2 < HOVER_RADIUS * HOVER_RADIUS * 4) {
-              hover = Math.exp((-d2 / (HOVER_RADIUS * HOVER_RADIUS)) * 1.5) * 0.9;
-            }
-          }
-          const tr = Math.max(trail[k] * keepT, hover);
-          trail[k] = tr < 0.012 ? 0 : tr;
           const gl = glow[k] * keepG;
           glow[k] = gl < 0.012 ? 0 : gl;
 
@@ -219,7 +196,7 @@ export function PixelField({
             wave = Math.max(wave, dropWave(Math.sqrt(dx * dx + dy * dy), now - r.t0));
           }
 
-          const v = Math.max(trail[k], glow[k], wave);
+          const v = Math.max(glow[k], wave);
           if (v > 0.02) {
             drawLit(Math.min(1, v), cx, cy);
             alive = true;
@@ -238,12 +215,7 @@ export function PixelField({
       for (let j = 0; j < rows; j++) {
         for (let i = 0; i < cols; i++) {
           const k = j * cols + i;
-          let v = glow[k];
-          if (pointer) {
-            const dx = (i + 0.5) * cell - pointer.x;
-            const dy = (j + 0.5) * cell + oy - pointer.y;
-            if (dx * dx + dy * dy < (cell * 0.75) ** 2) v = 1;
-          }
+          const v = glow[k];
           if (v > 0) drawLit(v, (i + 0.5) * cell, (j + 0.5) * cell + oy);
         }
       }
@@ -259,6 +231,7 @@ export function PixelField({
 
     function addDrop(x: number, y: number) {
       if (reduced) return;
+      glow.fill(0); // a new drop replaces the last one entirely
       ripples.push({ x, y, t0: performance.now() / 1000 });
       if (ripples.length > MAX_DROPS) ripples.shift();
       const i = Math.min(cols - 1, Math.max(0, Math.floor(x / cell)));
@@ -282,12 +255,6 @@ export function PixelField({
       return { x, y, inside: x >= 0 && y >= 0 && x <= r.width && y <= r.height };
     }
 
-    const onMove = (e: PointerEvent) => {
-      if (e.pointerType === "touch") return;
-      const p = toLocal(e);
-      pointer = p.inside ? { x: p.x, y: p.y } : null;
-      wake();
-    };
     const onDown = (e: PointerEvent) => {
       const p = toLocal(e);
       if (!p.inside) return;
@@ -303,16 +270,11 @@ export function PixelField({
       }
       addDrop(p.x, p.y);
     };
-    const onLeave = () => {
-      pointer = null;
-      wake();
-    };
-
     function scheduleDrop(first = false) {
       if (!autoDrops || reduced) return;
       drops = setTimeout(
         () => {
-          if (visible && !document.hidden && w > 0) {
+          if (visible && !document.hidden && w > 0 && ripples.length === 0) {
             addDrop(w * (0.2 + Math.random() * 0.6), h * (0.2 + Math.random() * 0.6));
           }
           scheduleDrop();
@@ -338,9 +300,7 @@ export function PixelField({
     });
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
-    window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("pointerdown", onDown, { passive: true });
-    document.addEventListener("pointerleave", onLeave);
     document.addEventListener("visibilitychange", wake);
     if (fixed) window.addEventListener("scroll", wake, { passive: true });
     resize();
@@ -352,9 +312,7 @@ export function PixelField({
       ro.disconnect();
       io.disconnect();
       mo.disconnect();
-      window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("pointerleave", onLeave);
       document.removeEventListener("visibilitychange", wake);
       window.removeEventListener("scroll", wake);
     };

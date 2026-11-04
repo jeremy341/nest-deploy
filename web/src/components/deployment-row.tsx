@@ -37,9 +37,12 @@ function EnvPill({ deployment }: { deployment: DeploymentView }) {
 export function DeploymentRow({
   deployment,
   showProject = true,
+  demo = false,
 }: {
   deployment: DeploymentView;
   showProject?: boolean;
+  /** Sample data on the homepage: no links and no actions menu. */
+  demo?: boolean;
 }) {
   const href = `/projects/${deployment.projectSlug}/deployments/${deployment.id}`;
   const title = deployment.commit ?? `${deployment.source} deployment`;
@@ -47,7 +50,8 @@ export function DeploymentRow({
   return (
     <li
       className={cn(
-        "relative grid grid-cols-[minmax(0,1fr)] gap-x-4 gap-y-3 px-4 py-3 transition-colors hover:bg-[var(--ds-gray-100)]/60",
+        "relative grid grid-cols-[minmax(0,1fr)] gap-x-4 gap-y-3 px-4 py-3 transition-colors",
+        !demo && "hover:bg-[var(--ds-gray-100)]/60",
         showProject
           ? "md:grid-cols-[150px_minmax(0,1fr)_110px_120px_minmax(0,160px)_88px_32px]"
           : "md:grid-cols-[minmax(0,1fr)_110px_120px_minmax(0,160px)_88px_32px]",
@@ -72,12 +76,13 @@ export function DeploymentRow({
               {deployment.projectName}
             </span>
           ) : null}
-          <Link
-            href={href}
-            className="after:absolute after:inset-0 after:content-['']"
-          >
-            {title}
-          </Link>
+          {demo ? (
+            title
+          ) : (
+            <Link href={href} className="after:absolute after:inset-0 after:content-['']">
+              {title}
+            </Link>
+          )}
         </p>
         <StatusDot state={deployment.state} className="shrink-0" />
       </div>
@@ -109,7 +114,7 @@ export function DeploymentRow({
       </div>
 
       <div className="relative z-10 hidden justify-self-end md:block">
-        <DeploymentActions deployment={deployment} />
+        {demo ? null : <DeploymentActions deployment={deployment} />}
       </div>
     </li>
   );

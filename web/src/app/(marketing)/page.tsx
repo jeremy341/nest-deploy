@@ -119,7 +119,7 @@ function Showcase({
             <Plus className="-top-1.5 -right-1.5 z-10" />
             <Plus className="-bottom-1.5 -left-1.5 z-10" />
             <Plus className="-right-1.5 -bottom-1.5 z-10" />
-            <div inert aria-hidden="true" className="overflow-hidden border bg-background">
+            <div className="overflow-hidden border bg-background">
               {children}
             </div>
           </div>
@@ -262,7 +262,7 @@ export default function HomePage() {
       >
         {/* On a phone the demo is too narrow for commit and branch, so those drop out. */}
         <div className="p-3 sm:p-6 max-sm:[&_p.font-mono]:hidden">
-          <DeploymentsView deployments={SAMPLE_DEPLOYMENTS} showProject={false} />
+          <DeploymentsView deployments={SAMPLE_DEPLOYMENTS} showProject={false} demo />
         </div>
       </Showcase>
 

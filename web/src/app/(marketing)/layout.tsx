@@ -2,6 +2,7 @@ import { Pixelify_Sans } from "next/font/google";
 import Link from "next/link";
 import { NestMark } from "@/components/nest-mark";
 import { PixelField } from "@/components/pixel-field";
+import { ThemeButton } from "@/components/theme-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NEST_GUIDES_URL, REPO_URL } from "@/lib/site";
 
@@ -54,6 +55,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            <ThemeButton />
             <Link href="/login" className={`${small} hidden text-muted-foreground hover:text-foreground sm:inline-flex`}>
               Log in
             </Link>

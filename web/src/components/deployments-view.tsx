@@ -10,9 +10,12 @@ type Filter = "all" | "ready" | "building" | "error";
 export function DeploymentsView({
   deployments,
   showProject = true,
+  demo = false,
 }: {
   deployments: DeploymentView[];
   showProject?: boolean;
+  /** Sample data on the homepage: filters work, rows are not links. */
+  demo?: boolean;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const visible =
@@ -59,7 +62,7 @@ export function DeploymentsView({
       ) : (
         <ul className="hairline-y overflow-hidden rounded-lg bg-card shadow-border-small">
           {visible.map((d) => (
-            <DeploymentRow key={d.id} deployment={d} showProject={showProject} />
+            <DeploymentRow key={d.id} deployment={d} showProject={showProject} demo={demo} />
           ))}
         </ul>
       )}
