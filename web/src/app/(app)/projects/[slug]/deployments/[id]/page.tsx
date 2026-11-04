@@ -1,21 +1,21 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowUpRightIcon,
   GitBranchIcon,
   GitCommitIcon,
-  WarningCircleIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { BuildLogs } from "@/components/build-logs";
 import { DeploymentActions } from "@/components/deployment-actions";
+import { PageHeader } from "@/components/page-header";
+import { DeploymentSkeleton } from "@/components/skeletons/deployment";
 import { StatusDot } from "@/components/status-dot";
+import { Alert } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { requireUser } from "@/server/auth/current";
 import { deploymentLogs } from "@/server/projects";
 import { deploymentView } from "@/server/queries";
-import { cn } from "@/lib/utils";
 
 type Props = { params: Promise<{ slug: string; id: string }> };
 
@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: Props) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <dt className="mb-1 text-[13px] text-muted-foreground">{label}</dt>
+      <dt className="mb-1 text-label text-muted-foreground">{label}</dt>
       <dd className="font-medium tracking-[-0.02em]">{children}</dd>
     </div>
   );
@@ -54,43 +54,45 @@ async function Content({ params }: Props) {
   const address = domains[0];
 
   return (
-    <div className="space-y-6">
-      <nav aria-label="Breadcrumb" className="text-muted-foreground">
-        <Link href={`/projects/${slug}/deployments`} className="hover:text-foreground">
-          Project Deployments
-        </Link>
-        <span aria-hidden="true" className="mx-2">
-          /
-        </span>
-        <span className="font-mono text-[13px] text-foreground">{id.slice(0, 8)}</span>
-      </nav>
-
-      {d.state === "error" && d.error ? (
-        <div role="status" className="flex gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
-          <WarningCircleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
-          <p>{d.error}</p>
-        </div>
-      ) : null}
-
-      <section aria-labelledby="details-heading" className="rounded-lg bg-card shadow-border-small">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-          <h1 id="details-heading" className="font-medium tracking-[-0.02em]">
-            Deployment Details
-          </h1>
-          <div className="flex items-center gap-2">
+    <div className="motion-enter space-y-6">
+      <PageHeader
+        title={
+          <>
+            Deployment <span className="font-mono">{id.slice(0, 8)}</span>
+          </>
+        }
+        description={d.commit ?? undefined}
+        actions={
+          <>
             {address ? (
-              <a
-                href={`https://${address}`}
-                target="_blank"
-                rel="noreferrer"
-                className={cn(buttonVariants(), "px-3")}
+              <Button
+                className="px-3"
+                render={<a href={`https://${address}`} target="_blank" rel="noreferrer" />}
               >
                 Visit
-                <ArrowUpRightIcon />
-              </a>
+                <ArrowUpRightIcon aria-hidden="true" />
+                <span className="sr-only">(opens in a new tab)</span>
+              </Button>
             ) : null}
             <DeploymentActions deployment={d} />
-          </div>
+          </>
+        }
+      />
+
+      {d.state === "error" && d.error ? (
+        <Alert tone="error" role="status">
+          {d.error}
+        </Alert>
+      ) : null}
+
+      <section
+        aria-labelledby="details-heading"
+        className="overflow-hidden rounded-lg bg-card shadow-border-small"
+      >
+        <div className="border-b px-4 py-3">
+          <h2 id="details-heading" className="text-title-3">
+            Details
+          </h2>
         </div>
 
         <dl className="grid gap-x-6 gap-y-5 p-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -124,14 +126,14 @@ async function Content({ params }: Props) {
             <span className="tabular font-mono text-[13px] font-normal">{d.port}</span>
           </Field>
           <div className="min-w-0 sm:col-span-2 lg:col-span-3">
-            <dt className="mb-1 text-[13px] text-muted-foreground">Source</dt>
+            <dt className="mb-1 text-label text-muted-foreground">Source</dt>
             <dd className="space-y-1">
               <p className="flex items-center gap-1.5 font-mono text-[13px]">
-                <GitBranchIcon className="size-4 shrink-0" />
+                <GitBranchIcon aria-hidden="true" className="size-4 shrink-0" />
                 {d.branch}
               </p>
               <p className="flex min-w-0 items-center gap-1.5">
-                <GitCommitIcon className="size-4 shrink-0 text-muted-foreground" />
+                <GitCommitIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
                 <span className="shrink-0 font-mono text-[13px]">{(d.sha ?? "").slice(0, 7) || "pending"}</span>
                 <span className="truncate">{d.commit}</span>
               </p>
@@ -153,15 +155,7 @@ async function Content({ params }: Props) {
 
 export default function DeploymentPage({ params }: Props) {
   return (
-    <Suspense
-      fallback={
-        <div aria-busy="true" aria-label="Loading deployment" className="space-y-6">
-          <div className="skeleton-sweep h-4 w-48 rounded-md" />
-          <div className="skeleton-sweep h-56 w-full rounded-lg" />
-          <div className="skeleton-sweep h-12 w-full rounded-lg" />
-        </div>
-      }
-    >
+    <Suspense fallback={<DeploymentSkeleton />}>
       <Content params={params} />
     </Suspense>
   );

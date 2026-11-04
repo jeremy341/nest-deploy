@@ -1,12 +1,18 @@
 import type { Icon } from "@phosphor-icons/react";
 import {
+  ChartLineUpIcon,
+  ClockCounterClockwiseIcon,
+  GaugeIcon,
   CubeIcon,
   GearSixIcon,
+  BookOpenTextIcon,
   GlobeSimpleIcon,
   HardDrivesIcon,
+  HouseLineIcon,
   ListDashesIcon,
+  PlusIcon,
   SquaresFourIcon,
-  TriangleIcon,
+  UserCircleIcon,
 } from "@phosphor-icons/react";
 
 export type NavItem = {
@@ -18,8 +24,12 @@ export type NavItem = {
 };
 
 export type NavContext = {
-  /** Text shown centred in the top bar. */
+  /** Text shown centred in the top bar on phones, and the single crumb on team pages. */
   title: string;
+  /** Desktop breadcrumb label for the page inside a project ("Overview", "Deployments"...). */
+  crumb?: string;
+  /** Short deployment id on the deployment detail page. */
+  deploymentId?: string;
   /** Where the phone's back chevron goes, if this is a nested page. */
   backHref?: string;
   /** Label for the sidebar's way back to the team level. */
@@ -48,10 +58,22 @@ const TEAM_ITEMS: NavItem[] = [
     active: (p) => p.startsWith("/logs"),
   },
   {
+    href: "/resources",
+    label: "Resources",
+    icon: GaugeIcon,
+    active: (p) => p.startsWith("/resources"),
+  },
+  {
     href: "/domains",
     label: "Domains",
     icon: GlobeSimpleIcon,
     active: (p) => p.startsWith("/domains"),
+  },
+  {
+    href: "/activity",
+    label: "Activity",
+    icon: ClockCounterClockwiseIcon,
+    active: (p) => p.startsWith("/activity"),
   },
   {
     href: "/connect",
@@ -62,10 +84,12 @@ const TEAM_ITEMS: NavItem[] = [
 ];
 
 const TEAM_TITLES: Record<string, string> = {
-  "/projects": "Overview",
+  "/projects": "Projects",
   "/deployments": "Deployments",
   "/logs": "Logs",
+  "/resources": "Resources",
   "/domains": "Domains",
+  "/activity": "Activity",
   "/connect": "Connect a Server",
 };
 
@@ -75,7 +99,7 @@ function projectItems(slug: string): NavItem[] {
     {
       href: base,
       label: "Overview",
-      icon: TriangleIcon,
+      icon: HouseLineIcon,
       active: (p) => p === base,
     },
     {
@@ -83,6 +107,12 @@ function projectItems(slug: string): NavItem[] {
       label: "Deployments",
       icon: CubeIcon,
       active: (p) => p.startsWith(`${base}/deployments`),
+    },
+    {
+      href: `${base}/analytics`,
+      label: "Analytics",
+      icon: ChartLineUpIcon,
+      active: (p) => p.startsWith(`${base}/analytics`),
     },
     {
       href: `${base}/settings`,
@@ -102,15 +132,25 @@ export function navFor(pathname: string): NavContext {
     const name = slug;
 
     let title = "Project Overview";
+    let crumb = "Overview";
+    let deploymentId: string | undefined;
     let backHref = "/projects";
     if (rest.startsWith("/deployments/")) {
       title = "Deployment";
+      crumb = "Deployment";
+      deploymentId = rest.split("/")[2]?.slice(0, 8);
       backHref = `/projects/${slug}/deployments`;
+    } else if (rest.startsWith("/analytics")) {
+      title = "Project Analytics";
+      crumb = "Analytics";
+      backHref = `/projects/${slug}`;
     } else if (rest.startsWith("/settings")) {
       title = "Project Settings";
+      crumb = "Settings";
       backHref = `/projects/${slug}`;
     } else if (rest.startsWith("/deployments")) {
       title = "Project Deployments";
+      crumb = "Deployments";
       backHref = `/projects/${slug}`;
     } else {
       backHref = "/projects";
@@ -118,11 +158,17 @@ export function navFor(pathname: string): NavContext {
 
     return {
       title,
+      crumb,
+      deploymentId,
       backHref,
       backLabel: "All Projects",
       items: projectItems(slug),
       project: { slug, name },
     };
+  }
+
+  if (pathname.startsWith("/account")) {
+    return { title: "Account", backHref: "/projects", items: TEAM_ITEMS };
   }
 
   const known = TEAM_ITEMS.find((i) => i.active(pathname));
@@ -133,16 +179,34 @@ export function navFor(pathname: string): NavContext {
   };
 }
 
+export type FindTarget = {
+  href: string;
+  label: string;
+  group: string;
+  /** Leading icon for pages. Projects use a PixelAvatar seeded with `seed`. */
+  icon?: Icon;
+  seed?: string;
+};
+
 /** Everything the Find palette can jump to. */
 export function findTargets(
   projects: { slug: string; name: string }[]
-): { href: string; label: string; group: string }[] {
+): FindTarget[] {
   return [
-    ...TEAM_ITEMS.map((i) => ({ href: i.href, label: i.label, group: "Pages" })),
+    ...TEAM_ITEMS.map((i) => ({
+      href: i.href,
+      label: i.label,
+      group: "Pages",
+      icon: i.icon,
+    })),
+    { href: "/account", label: "Account", group: "Pages", icon: UserCircleIcon },
+    { href: "/new", label: "New project", group: "Pages", icon: PlusIcon },
+    { href: "/docs", label: "Docs", group: "Pages", icon: BookOpenTextIcon },
     ...projects.map((p) => ({
       href: `/projects/${p.slug}`,
       label: p.name,
       group: "Projects",
+      seed: p.slug,
     })),
   ];
 }

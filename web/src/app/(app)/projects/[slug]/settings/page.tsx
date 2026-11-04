@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { ProjectSettings } from "@/components/project-settings";
+import { SettingsSkeleton } from "@/components/skeletons/settings";
 import { requireUser } from "@/server/auth/current";
 import { listEnvVars } from "@/server/projects";
 import { projectViews } from "@/server/queries";
@@ -23,14 +24,7 @@ async function Content({ params }: Props) {
 
 export default function ProjectSettingsPage({ params }: Props) {
   return (
-    <Suspense
-      fallback={
-        <div aria-busy="true" aria-label="Loading settings" className="mx-auto max-w-[720px] space-y-6">
-          <div className="skeleton-sweep h-64 rounded-lg" />
-          <div className="skeleton-sweep h-64 rounded-lg" />
-        </div>
-      }
-    >
+    <Suspense fallback={<SettingsSkeleton />}>
       <Content params={params} />
     </Suspense>
   );

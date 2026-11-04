@@ -13,9 +13,15 @@ import { useRouter } from "next/navigation";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { findTargets } from "@/lib/nav";
 import { useAccount } from "@/components/account-context";
+import { PixelAvatar } from "@/components/ui/pixel-avatar";
 import { cn } from "@/lib/utils";
 
-type FindContextValue = { open: () => void };
+type OpenOptions = {
+  /** Keyboard-initiated: appear with no animation. */
+  instant?: boolean;
+};
+
+type FindContextValue = { open: (options?: OpenOptions) => void };
 
 const FindContext = createContext<FindContextValue>({ open: () => {} });
 
@@ -32,8 +38,11 @@ function isTyping(target: EventTarget | null) {
 }
 
 export function FindProvider({ children }: { children: React.ReactNode }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const open = useCallback(() => setIsOpen(true), []);
+  const [state, setState] = useState<{ instant: boolean } | null>(null);
+  const open = useCallback(
+    (options?: OpenOptions) => setState({ instant: options?.instant === true }),
+    []
+  );
   const value = useMemo(() => ({ open }), [open]);
 
   useEffect(() => {
@@ -41,7 +50,7 @@ export function FindProvider({ children }: { children: React.ReactNode }) {
       if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target)) return;
       if (e.key === "f" || e.key === "F") {
         e.preventDefault();
-        setIsOpen(true);
+        setState({ instant: true });
       }
     }
     window.addEventListener("keydown", onKey);
@@ -51,16 +60,33 @@ export function FindProvider({ children }: { children: React.ReactNode }) {
   return (
     <FindContext.Provider value={value}>
       {children}
-      {isOpen ? <Palette onClose={() => setIsOpen(false)} /> : null}
+      {state ? (
+        <Palette instant={state.instant} onClose={() => setState(null)} />
+      ) : null}
     </FindContext.Provider>
   );
 }
 
-function Palette({ onClose }: { onClose: () => void }) {
+function Kbd({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="rounded-sm border px-1.5 font-mono text-caption text-muted-foreground">
+      {children}
+    </kbd>
+  );
+}
+
+function Palette({
+  instant,
+  onClose,
+}: {
+  instant: boolean;
+  onClose: () => void;
+}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   const { projects } = useAccount();
   const targets = useMemo(() => findTargets(projects), [projects]);
@@ -71,12 +97,20 @@ function Palette({ onClose }: { onClose: () => void }) {
   const active = Math.min(index, Math.max(results.length - 1, 0));
 
   useEffect(() => {
-    inputRef.current?.focus();
+    // Remember the opener before the input takes focus, so closing returns to it.
     const previous = document.activeElement;
+    inputRef.current?.focus();
     return () => {
       if (previous instanceof HTMLElement) previous.focus();
     };
   }, []);
+
+  // Keep the highlighted option in view when moving with the arrow keys.
+  useEffect(() => {
+    listRef.current
+      ?.querySelector<HTMLElement>(`#find-opt-${active}`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [active]);
 
   function go(href: string) {
     onClose();
@@ -87,6 +121,9 @@ function Palette({ onClose }: { onClose: () => void }) {
     if (e.key === "Escape") {
       e.preventDefault();
       onClose();
+    } else if (e.key === "Tab") {
+      // The palette is one input; focus stays on it.
+      e.preventDefault();
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
       setIndex(Math.min(active + 1, results.length - 1));
@@ -103,7 +140,10 @@ function Palette({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-[300] flex items-start justify-center bg-[color-mix(in_oklab,var(--ds-background-200)_80%,transparent)] px-4 pt-[12vh]"
+      className={cn(
+        "fixed inset-0 z-(--z-overlay) flex items-start justify-center bg-[color-mix(in_oklab,var(--ds-background-200)_70%,transparent)] px-4 pt-[8vh] sm:pt-[12vh]",
+        !instant && "animate-in duration-150 ease-snappy fade-in-0"
+      )}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -113,10 +153,17 @@ function Palette({ onClose }: { onClose: () => void }) {
         aria-modal="true"
         aria-label="Find"
         onKeyDown={onKeyDown}
-        className="shadow-modal w-full max-w-[560px] origin-top animate-in rounded-xl bg-popover duration-300 ease-swift fade-in-0 zoom-in-[0.96]"
+        className={cn(
+          "shadow-modal w-full max-w-[560px] origin-top rounded-xl bg-popover",
+          !instant &&
+            "animate-in duration-150 ease-snappy fade-in-0 zoom-in-[0.98]"
+        )}
       >
         <div className="flex items-center gap-3 border-b px-4">
-          <MagnifyingGlassIcon className="size-4 shrink-0 text-subtle-foreground" />
+          <MagnifyingGlassIcon
+            aria-hidden="true"
+            className="size-4 shrink-0 text-subtle-foreground"
+          />
           <input
             ref={inputRef}
             value={query}
@@ -131,14 +178,13 @@ function Palette({ onClose }: { onClose: () => void }) {
               results[active] ? `find-opt-${active}` : undefined
             }
             aria-label="Find pages and projects"
-            placeholder="Find pages and projects..."
-            className="h-12 w-full bg-transparent text-[15px] outline-none placeholder:text-subtle-foreground"
+            placeholder="Find pages and projects…"
+            className="h-12 w-full bg-transparent text-base outline-none placeholder:text-subtle-foreground sm:text-[15px]"
           />
-          <kbd className="rounded border px-1.5 py-0.5 font-mono text-[11px] text-subtle-foreground">
-            Esc
-          </kbd>
+          <Kbd>Esc</Kbd>
         </div>
         <ul
+          ref={listRef}
           id="find-results"
           role="listbox"
           aria-label="Results"
@@ -152,6 +198,7 @@ function Palette({ onClose }: { onClose: () => void }) {
             results.map((t, i) => {
               const header = t.group !== lastGroup;
               lastGroup = t.group;
+              const Icon = t.icon;
               return (
                 <li key={t.href} role="presentation">
                   {header ? (
@@ -166,17 +213,41 @@ function Palette({ onClose }: { onClose: () => void }) {
                     onMouseMove={() => setIndex(i)}
                     onClick={() => go(t.href)}
                     className={cn(
-                      "flex h-9 cursor-pointer items-center rounded-md px-3 font-medium tracking-[-0.02em]",
+                      "flex h-9 cursor-pointer items-center gap-2.5 rounded-md px-3 font-medium tracking-[-0.02em] max-sm:h-11",
                       i === active && "bg-[var(--ds-gray-200)]"
                     )}
                   >
-                    {t.label}
+                    {Icon ? (
+                      <Icon
+                        aria-hidden="true"
+                        className="size-4 shrink-0 text-muted-foreground"
+                      />
+                    ) : t.seed ? (
+                      <PixelAvatar seed={t.seed} size={16} />
+                    ) : null}
+                    <span className="min-w-0 flex-1 truncate">{t.label}</span>
+                    {i === active ? <Kbd>↵</Kbd> : null}
                   </div>
                 </li>
               );
             })
           )}
         </ul>
+        <div className="hidden h-9 items-center gap-4 border-t px-3 text-caption text-muted-foreground sm:flex">
+          <span className="inline-flex items-center gap-1.5">
+            <Kbd>↑</Kbd>
+            <Kbd>↓</Kbd>
+            Move
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Kbd>↵</Kbd>
+            Open
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Kbd>Esc</Kbd>
+            Close
+          </span>
+        </div>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { DeploymentsView } from "@/components/deployments-view";
 import { PageHeader } from "@/components/page-header";
+import { DeploymentsSkeleton } from "@/components/skeletons/deployments";
 import { requireUser } from "@/server/auth/current";
 import { deploymentViews, projectViews } from "@/server/queries";
 
@@ -20,23 +21,16 @@ async function Content({ params }: Props) {
   const deployments = await deploymentViews(user.id, { projectId: project.id });
 
   return (
-    <>
+    <div className="motion-enter">
       <PageHeader title="Deployments" description="Every release of this project, newest first." />
       <DeploymentsView deployments={deployments} showProject={false} />
-    </>
+    </div>
   );
 }
 
 export default function ProjectDeploymentsPage({ params }: Props) {
   return (
-    <Suspense
-      fallback={
-        <div aria-busy="true" aria-label="Loading deployments">
-          <div className="skeleton-sweep mb-6 h-9 w-48 rounded-md" />
-          <div className="skeleton-sweep h-64 w-full rounded-lg" />
-        </div>
-      }
-    >
+    <Suspense fallback={<DeploymentsSkeleton showProject={false} />}>
       <Content params={params} />
     </Suspense>
   );

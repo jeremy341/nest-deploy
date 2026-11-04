@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import { NewProjectFlow, type GithubState } from "@/components/new-project-flow";
+import { NewProjectSkeleton } from "@/components/skeletons/new-project";
 import { requireUser } from "@/server/auth/current";
 import { config, githubConfigured } from "@/server/config";
 import { userInstallations } from "@/server/github/app";
@@ -13,11 +15,17 @@ const NOTICES: Record<string, string> = {
   not_configured: "The GitHub App is not set up on this installation.",
 };
 
-export default async function NewProjectPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ github?: string }>;
-}) {
+type Props = { searchParams: Promise<{ github?: string }> };
+
+export default function NewProjectPage({ searchParams }: Props) {
+  return (
+    <Suspense fallback={<NewProjectSkeleton />}>
+      <NewProjectContent searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function NewProjectContent({ searchParams }: Props) {
   const user = await requireUser();
   const { github: notice } = await searchParams;
   const [servers, installations] = await Promise.all([

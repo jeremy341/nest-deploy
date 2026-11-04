@@ -1,14 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { TrashIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon, TrashIcon } from "@phosphor-icons/react";
 import { api } from "@/components/api";
-import { DeployHookCard, NotificationsCard } from "@/components/project-automation";
-import { Card, Label, selectClass } from "@/components/settings-ui";
+import { Swap } from "@/components/motion/swap";
+import { DeployHookCard, NotificationsCard, StatusPageCard } from "@/components/project-automation";
+import { PageHeader } from "@/components/page-header";
+import { Card, Label } from "@/components/settings-ui";
+import { SettingsNav } from "@/components/settings-nav";
+import { Alert } from "@/components/ui/alert";
+import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import type { ProjectView } from "@/server/queries";
+import { cn } from "@/lib/utils";
 
 type EnvVar = { id: string; key: string; target: "all" | "production" | "preview" };
 
@@ -62,10 +69,23 @@ export function ProjectSettings({
   const [value, setValue] = useState("");
   const [target, setTarget] = useState<EnvVar["target"]>("all");
   const [envError, setEnvError] = useState<string | null>(null);
+  const [envSaving, setEnvSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const valueRef = useRef<HTMLInputElement>(null);
+
+  /** Values are never sent back, so editing means typing a new one for the same name. */
+  function editEnv(v: EnvVar) {
+    setKey(v.key);
+    setTarget(v.target);
+    setValue("");
+    setEditing(true);
+    valueRef.current?.focus();
+  }
 
   async function addEnv(e: React.FormEvent) {
     e.preventDefault();
     setEnvError(null);
+    setEnvSaving(true);
     try {
       const res = await api<{ env: EnvVar[] }>(`/api/projects/${project.id}/env`, {
         method: "POST",
@@ -74,18 +94,27 @@ export function ProjectSettings({
       setEnv(res.env);
       setKey("");
       setValue("");
+      setEditing(false);
     } catch (err) {
       setEnvError(err instanceof Error ? err.message : "Could not save");
+    } finally {
+      setEnvSaving(false);
     }
   }
 
+  /**
+   * Throws on failure so the confirm dialog can show the message. The row is
+   * removed just after the dialog has closed, so focus can return somewhere
+   * real instead of to a trigger that no longer exists.
+   */
   async function removeEnv(id: string) {
-    try {
-      await api(`/api/projects/${project.id}/env/${id}`, { method: "DELETE" });
+    await api(`/api/projects/${project.id}/env/${id}`, { method: "DELETE" });
+    window.setTimeout(() => {
       setEnv((list) => list.filter((v) => v.id !== id));
-    } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Could not delete");
-    }
+      if (window.matchMedia("(pointer: fine)").matches) {
+        document.getElementById("env-key")?.focus();
+      }
+    }, 180);
   }
 
   // ---- danger zone
@@ -109,197 +138,236 @@ export function ProjectSettings({
     }
   }
 
+  const canDelete = confirm === project.slug;
+
   return (
-    <div className="mx-auto w-full max-w-[720px] space-y-6">
-      <Card
-        id="run-heading"
-        title="Build and Run"
-        description="How this project starts on your Nest container."
-        footer={
-          <>
-            <p
-              role="status"
-              className={saveMsg?.ok === false ? "text-[13px] text-destructive" : "text-[13px] text-muted-foreground"}
-            >
-              {saveMsg?.text ?? "Changes apply to the next deployment."}
-            </p>
-            <Button type="submit" form="run-form" disabled={saving} className="px-3">
-              {saving ? "Saving..." : "Save"}
-            </Button>
-          </>
-        }
-      >
-        <form id="run-form" onSubmit={save} className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="ps-branch">Production branch</Label>
-            <Input
-              id="ps-branch"
-              value={form.productionBranch}
-              onChange={(e) => setForm({ ...form, productionBranch: e.target.value })}
-              className="font-mono"
-            />
-          </div>
-          <div>
-            <Label htmlFor="ps-port">Port</Label>
-            <Input
-              id="ps-port"
-              inputMode="numeric"
-              value={form.port}
-              onChange={(e) => setForm({ ...form, port: e.target.value })}
-              className="font-mono"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Label htmlFor="ps-start">Start command</Label>
-            <Input
-              id="ps-start"
-              value={form.startCommand}
-              placeholder={project.runtime === "node" ? "npm start" : "python3 app.py"}
-              onChange={(e) => setForm({ ...form, startCommand: e.target.value })}
-              className="font-mono"
-            />
-          </div>
-          <div>
-            <Label htmlFor="ps-health">Health check path</Label>
-            <Input
-              id="ps-health"
-              value={form.healthPath}
-              onChange={(e) => setForm({ ...form, healthPath: e.target.value })}
-              className="font-mono"
-            />
-          </div>
-          <label className="flex items-center gap-2 self-end pb-2">
-            <input
-              type="checkbox"
-              checked={form.autoDeploy}
-              onChange={(e) => setForm({ ...form, autoDeploy: e.target.checked })}
-              className="size-4"
-            />
-            Deploy automatically on push
-          </label>
-        </form>
-      </Card>
+    <div className="motion-enter w-full max-w-[936px]">
+      <PageHeader title="Settings" />
+      <div className="grid gap-10 lg:grid-cols-[176px_minmax(0,720px)]">
+        <SettingsNav />
 
-      <Card
-        id="env-heading"
-        title="Environment Variables"
-        description="Stored encrypted. They are written to your server when you deploy, and values are never shown again."
-      >
-        <form onSubmit={addEnv} className="grid gap-3 sm:grid-cols-[1fr_1.4fr_130px_auto] sm:items-end">
-          <div>
-            <Label htmlFor="env-key">Name</Label>
-            <Input
-              id="env-key"
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-              placeholder="API_KEY"
-              autoComplete="off"
-              spellCheck={false}
-              className="font-mono"
-            />
-          </div>
-          <div>
-            <Label htmlFor="env-value">Value</Label>
-            <Input
-              id="env-value"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-              className="font-mono"
-            />
-          </div>
-          <div>
-            <Label htmlFor="env-target">Applies to</Label>
-            <select
-              id="env-target"
-              className={selectClass}
-              value={target}
-              onChange={(e) => setTarget(e.target.value as EnvVar["target"])}
-            >
-              <option value="all">All</option>
-              <option value="production">Production</option>
-              <option value="preview">Preview</option>
-            </select>
-          </div>
-          <Button type="submit" disabled={!key.trim()} className="px-3">
-            Save
-          </Button>
-        </form>
-        {envError ? (
-          <p role="alert" className="mt-2 text-[13px] text-destructive">
-            {envError}
-          </p>
-        ) : null}
-
-        {env.length > 0 ? (
-          <ul className="hairline-y mt-4 overflow-hidden rounded-md shadow-border-base">
-            {env.map((v) => (
-              <li key={v.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                <span className="min-w-0 truncate font-mono text-[13px]">{v.key}</span>
-                <span className="flex shrink-0 items-center gap-3 text-muted-foreground">
-                  <span className="text-[13px] capitalize">{v.target}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Delete ${v.key}`}
-                    onClick={() => void removeEnv(v.id)}
-                  >
-                    <TrashIcon />
-                  </Button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-4 text-muted-foreground">No variables yet.</p>
-        )}
-      </Card>
-
-      <DeployHookCard project={project} />
-
-      <NotificationsCard project={project} />
-
-      <Card
-        id="danger-heading"
-        title="Delete Project"
-        description="Removes the project from Nest Deploy. Optionally stops it and deletes its releases on your server first."
-      >
-        <label className="mb-3 flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={removeRemote}
-            onChange={(e) => setRemoteRemoval(e.target.checked)}
-            className="size-4"
-          />
-          Also stop the service and delete releases on {project.nestUsername}.hackclub.app
-        </label>
-        <Label htmlFor="del-confirm">
-          Type <span className="font-mono text-foreground">{project.slug}</span> to confirm
-        </Label>
-        <div className="flex gap-2">
-          <Input
-            id="del-confirm"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            autoComplete="off"
-            className="font-mono"
-          />
-          <Button
-            variant="destructive"
-            disabled={confirm !== project.slug || deleting}
-            onClick={() => void destroy()}
-            className="shrink-0 px-3"
+        <div className="min-w-0 space-y-6">
+          <Card
+            id="run-heading"
+            title="Build and Run"
+            description="How this project starts on your Nest container."
+            docsHref="/docs/projects#projects-settings"
+            docsTopic="project settings"
+            footer={
+              <>
+                <p
+                  role="status"
+                  className={cn(
+                    "text-label",
+                    saveMsg?.ok === false ? "text-destructive" : "text-muted-foreground"
+                  )}
+                >
+                  <Swap value={saveMsg?.text ?? "idle"}>
+                    {saveMsg?.text ?? "Changes apply to the next deployment."}
+                  </Swap>
+                </p>
+                <Button type="submit" form="run-form" loading={saving}>
+                  {saving ? "Saving…" : "Save"}
+                </Button>
+              </>
+            }
           >
-            {deleting ? "Deleting..." : "Delete"}
-          </Button>
+            <form id="run-form" onSubmit={save} className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="ps-branch">Production branch</Label>
+                <Input
+                  id="ps-branch"
+                  value={form.productionBranch}
+                  onChange={(e) => setForm({ ...form, productionBranch: e.target.value })}
+                  className="font-mono"
+                />
+              </div>
+              <div>
+                <Label htmlFor="ps-port">Port</Label>
+                <Input
+                  id="ps-port"
+                  inputMode="numeric"
+                  value={form.port}
+                  onChange={(e) => setForm({ ...form, port: e.target.value })}
+                  className="font-mono"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="ps-start">Start command</Label>
+                <Input
+                  id="ps-start"
+                  value={form.startCommand}
+                  placeholder={project.runtime === "node" ? "npm start" : "python3 app.py"}
+                  onChange={(e) => setForm({ ...form, startCommand: e.target.value })}
+                  className="font-mono"
+                />
+              </div>
+              <div>
+                <Label htmlFor="ps-health">Health check path</Label>
+                <Input
+                  id="ps-health"
+                  value={form.healthPath}
+                  onChange={(e) => setForm({ ...form, healthPath: e.target.value })}
+                  className="font-mono"
+                />
+              </div>
+              <label className="inline-flex min-h-10 items-center gap-2 self-end sm:min-h-9">
+                <input
+                  type="checkbox"
+                  checked={form.autoDeploy}
+                  onChange={(e) => setForm({ ...form, autoDeploy: e.target.checked })}
+                />
+                Deploy automatically on push
+              </label>
+            </form>
+          </Card>
+
+          <Card
+            id="env-heading"
+            title="Environment Variables"
+            description="Stored encrypted. They are written to your server when you deploy, and values are never shown again."
+            docsHref="/docs/env"
+            docsTopic="environment variables"
+          >
+            <form
+              onSubmit={addEnv}
+              className="grid gap-3 sm:grid-cols-[1fr_1.4fr_130px_auto] sm:items-end"
+            >
+              <div>
+                <Label htmlFor="env-key">Name</Label>
+                <Input
+                  id="env-key"
+                  value={key}
+                  onChange={(e) => setKey(e.target.value)}
+                  placeholder="API_KEY"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="font-mono"
+                />
+              </div>
+              <div>
+                <Label htmlFor="env-value">Value</Label>
+                <Input
+                  id="env-value"
+                  ref={valueRef}
+                  placeholder={editing ? "New value" : undefined}
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="font-mono"
+                />
+              </div>
+              <div>
+                <Label htmlFor="env-target">Applies to</Label>
+                <NativeSelect
+                  id="env-target"
+                  value={target}
+                  onChange={(e) => setTarget(e.target.value as EnvVar["target"])}
+                >
+                  <option value="all">All</option>
+                  <option value="production">Production</option>
+                  <option value="preview">Preview</option>
+                </NativeSelect>
+              </div>
+              <Button type="submit" disabled={!key.trim()} loading={envSaving}>
+                {envSaving ? "Saving…" : editing ? "Update" : "Save"}
+              </Button>
+            </form>
+            {envError ? (
+              <Alert tone="error" role="alert" className="mt-3">
+                {envError}
+              </Alert>
+            ) : null}
+
+            {env.length > 0 ? (
+              <ul className="hairline-y mt-4 overflow-hidden rounded-md shadow-border-base">
+                {env.map((v) => (
+                  <li key={v.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="min-w-0 truncate font-mono text-[13px]">{v.key}</span>
+                    <span className="flex shrink-0 items-center gap-1 text-muted-foreground">
+                      <span className="mr-2 text-label capitalize">{v.target}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Change the value of ${v.key}`}
+                        onClick={() => editEnv(v)}
+                      >
+                        <PencilSimpleIcon />
+                      </Button>
+                      <ConfirmDialog
+                        tone="destructive"
+                        title={`Delete ${v.key}?`}
+                        description="Deployments after this one will not have it."
+                        confirmLabel="Delete"
+                        pendingLabel="Deleting…"
+                        onConfirm={() => removeEnv(v.id)}
+                        trigger={
+                          <Button variant="ghost" size="icon-sm" aria-label={`Delete ${v.key}`}>
+                            <TrashIcon />
+                          </Button>
+                        }
+                      />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 text-muted-foreground">No variables yet.</p>
+            )}
+          </Card>
+
+          <DeployHookCard project={project} />
+
+          <NotificationsCard project={project} />
+
+          <StatusPageCard project={project} />
+
+          <Card
+            id="danger-heading"
+            title="Delete Project"
+            description="Removes the project from Nest Deploy. Optionally stops it and deletes its releases on your server first."
+            tone="danger"
+            footer={
+              <>
+                {deleteError ? (
+                  <p role="alert" className="min-w-0 text-label text-foreground">
+                    {deleteError}
+                  </p>
+                ) : null}
+                <Button
+                  variant={canDelete ? "destructive-solid" : "destructive"}
+                  disabled={!canDelete}
+                  loading={deleting}
+                  onClick={() => void destroy()}
+                  className="ml-auto"
+                >
+                  {deleting ? "Deleting…" : "Delete"}
+                </Button>
+              </>
+            }
+          >
+            <label className="mb-3 inline-flex min-h-10 items-center gap-2 sm:min-h-8">
+              <input
+                type="checkbox"
+                checked={removeRemote}
+                onChange={(e) => setRemoteRemoval(e.target.checked)}
+              />
+              Also stop the service and delete releases on {project.nestUsername}.hackclub.app
+            </label>
+            <Label htmlFor="del-confirm">
+              Type <span className="font-mono text-foreground">{project.slug}</span> to confirm
+            </Label>
+            <Input
+              id="del-confirm"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              autoComplete="off"
+              className="font-mono"
+            />
+          </Card>
         </div>
-        {deleteError ? (
-          <p role="alert" className="mt-2 text-[13px] text-destructive">
-            {deleteError}
-          </p>
-        ) : null}
-      </Card>
+      </div>
     </div>
   );
 }

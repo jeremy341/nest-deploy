@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import {
   CaretRightIcon,
   CheckCircleIcon,
-  CircleNotchIcon,
   XCircleIcon,
 } from "@phosphor-icons/react";
 import { Input } from "@/components/ui/input";
+import { PixelLoader } from "@/components/ui/pixel-loader";
 import { isActive } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
@@ -86,20 +86,28 @@ export function BuildLogs({
   const visible = q ? lines.filter((l) => l.message.toLowerCase().includes(q)) : lines;
 
   return (
-    <section className="rounded-lg bg-card shadow-border-small">
+    <section className="overflow-hidden rounded-lg bg-card shadow-border-small">
       <button
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-4 py-3 text-left font-medium tracking-[-0.02em]"
+        className="flex h-12 w-full items-center gap-2 px-4 text-left font-medium tracking-[-0.02em] focus-visible:outline-offset-[-2px]"
       >
-        <CaretRightIcon className={cn("size-4 transition-transform", open && "rotate-90")} />
+        <CaretRightIcon
+          aria-hidden="true"
+          className={cn("size-4 transition-transform duration-(--dur-base) ease-snappy", open && "rotate-90")}
+        />
         Build Logs
         <span className="ml-auto flex items-center gap-2 font-normal text-muted-foreground">
-          {duration}
+          <span className="tabular">{duration}</span>
           {active ? (
-            <CircleNotchIcon className="size-5 animate-spin" aria-label="Running" />
+            <>
+              <span className="inline-flex size-5 items-center justify-center text-[var(--status-building)]">
+                <PixelLoader size="md" />
+              </span>
+              <span className="sr-only">Running</span>
+            </>
           ) : rawState === "ready" ? (
             <CheckCircleIcon weight="fill" className="size-5 text-brand-text" aria-label="Succeeded" />
           ) : (
@@ -111,16 +119,14 @@ export function BuildLogs({
       {open ? (
         <div id={panelId} className="border-t">
           <div className="flex items-center justify-between gap-3 px-4 py-2">
-            <p className="text-[13px] text-muted-foreground" aria-live="polite">
-              {lines.length} lines
-            </p>
+            <p className="tabular text-label text-muted-foreground">{lines.length} lines</p>
             <Input
               type="search"
               aria-label="Find in logs"
-              placeholder="Find in logs"
+              placeholder="Find in logs…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="h-8 max-w-56"
+              className="h-8 max-w-56 max-sm:h-10"
             />
           </div>
           <div
@@ -132,17 +138,22 @@ export function BuildLogs({
               const el = e.currentTarget;
               stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
             }}
-            className="max-h-[480px] min-h-24 overflow-auto px-4 pb-4 font-mono text-[13px] leading-5"
+            className="log-surface max-h-[480px] min-h-24 overflow-auto py-3 focus-visible:outline-offset-[-2px]"
           >
             {visible.length === 0 ? (
-              <p className="py-6 text-center font-sans text-muted-foreground">
-                {lines.length === 0
-                  ? "Waiting for the first log line..."
-                  : `No lines match “${query}”.`}
+              <p className="flex items-center justify-center gap-2 px-4 py-6 text-center font-sans text-muted-foreground">
+                {lines.length === 0 ? (
+                  <>
+                    {active ? <PixelLoader size="sm" /> : null}
+                    Waiting for the first log line…
+                  </>
+                ) : (
+                  `No lines match “${query}”.`
+                )}
               </p>
             ) : (
               visible.map((l) => (
-                <p key={l.id} className="flex gap-4 whitespace-pre-wrap">
+                <p key={l.id} className="log-line flex gap-4 whitespace-pre-wrap">
                   <span className="tabular shrink-0 text-subtle-foreground">{clock(l.at)}</span>
                   <span
                     className={cn(

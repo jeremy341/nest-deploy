@@ -3,15 +3,18 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
+  GitBranchIcon,
   HardDrivesIcon,
   ListIcon,
   MagnifyingGlassIcon,
   PlusIcon,
   SquaresFourIcon,
 } from "@phosphor-icons/react";
+import { Stagger } from "@/components/motion/stagger";
 import { ProjectCard } from "@/components/project-card";
 import { Segmented } from "@/components/segmented";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import type { ProjectView } from "@/server/queries";
 import { cn } from "@/lib/utils";
@@ -30,31 +33,25 @@ export function ProjectsView({
 
   if (!hasServer) {
     return (
-      <div className="flex flex-col items-center rounded-lg border border-dashed px-6 py-16 text-center">
-        <HardDrivesIcon className="size-8 text-muted-foreground" />
-        <p className="mt-3 text-lg font-semibold tracking-[-0.02em]">Connect your Nest server</p>
-        <p className="mt-1 max-w-[46ch] text-muted-foreground">
-          Add a dedicated SSH key in the Nest dashboard and Nest Deploy can start deploying to
-          your container.
-        </p>
-        <Link href="/connect" className={cn(buttonVariants(), "mt-5 h-10 px-4")}>
-          Connect a server
-        </Link>
-      </div>
+      <EmptyState
+        icon={<HardDrivesIcon />}
+        title="Connect your Nest server"
+        description="Add a dedicated SSH key in the Nest dashboard and Nest Deploy can start deploying to your container."
+        action={
+          <Button render={<Link href="/connect" />}>Connect a server</Button>
+        }
+      />
     );
   }
 
   if (projects.length === 0) {
     return (
-      <div className="flex flex-col items-center rounded-lg border border-dashed px-6 py-16 text-center">
-        <p className="text-lg font-semibold tracking-[-0.02em]">No projects yet</p>
-        <p className="mt-1 max-w-[46ch] text-muted-foreground">
-          Import a GitHub repository and it will be built and run on your Nest server.
-        </p>
-        <Link href="/new" className={cn(buttonVariants(), "mt-5 h-10 px-4")}>
-          Add your first project
-        </Link>
-      </div>
+      <EmptyState
+        icon={<GitBranchIcon />}
+        title="No projects yet"
+        description="Import a GitHub repository and it will be built and run on your Nest server."
+        action={<Button render={<Link href="/new" />}>Add your first project</Button>}
+      />
     );
   }
 
@@ -70,7 +67,7 @@ export function ProjectsView({
   return (
     <div className="min-w-0">
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[200px] flex-1">
+        <div className="relative min-w-[200px] flex-1 max-sm:basis-full">
           <MagnifyingGlassIcon
             aria-hidden="true"
             className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
@@ -78,7 +75,7 @@ export function ProjectsView({
           <Input
             type="search"
             aria-label="Search projects"
-            placeholder="Search projects..."
+            placeholder="Search projects…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="pl-9"
@@ -93,35 +90,49 @@ export function ProjectsView({
             { value: "list", label: "List view", icon: <ListIcon />, iconOnly: true },
           ]}
         />
-        <Link href="/new" className={cn(buttonVariants(), "h-9 px-3")}>
+        <Button className="h-9 px-3 max-sm:h-10" render={<Link href="/new" />}>
           Add New
-          <PlusIcon />
-        </Link>
+          <PlusIcon aria-hidden="true" />
+        </Button>
       </div>
 
       {visible.length === 0 ? (
-        <div className="flex flex-col items-center rounded-lg border border-dashed px-6 py-16 text-center">
-          <p className="font-medium">No projects match “{query}”</p>
-          <p className="mt-1 text-muted-foreground">
-            Try a project name, repository, or domain.
-          </p>
-          <Button variant="outline" className="mt-4" onClick={() => setQuery("")}>
-            Clear search
-          </Button>
+        <div className="rounded-lg bg-card px-4 shadow-border-small">
+          <EmptyState
+            size="compact"
+            icon={<MagnifyingGlassIcon />}
+            title={`No projects match “${query}”`}
+            description="Try a project name, repository, or domain."
+            action={
+              <Button variant="outline" onClick={() => setQuery("")}>
+                Clear search
+              </Button>
+            }
+          />
         </div>
-      ) : (
-        <ul
-          className={
-            view === "grid" ? "grid gap-4 min-[1500px]:grid-cols-2" : "flex flex-col gap-3"
-          }
+      ) : null}
+
+      {/* One Stagger for the page's life, so a search or a view switch never replays the entrance. */}
+      <div className="@container">
+        <Stagger
+          aria-label="Projects"
+          className={cn(
+            visible.length === 0 && "hidden",
+            view === "grid"
+              ? "grid gap-4 @xl:grid-cols-2 @5xl:grid-cols-3"
+              : "hairline-y overflow-hidden rounded-lg bg-card shadow-border-small"
+          )}
         >
           {visible.map((project) => (
-            <li key={project.id} className="min-w-0">
-              <ProjectCard project={project} />
+            <li
+              key={project.id}
+              className={cn("min-w-0", view === "list" && "row-focus")}
+            >
+              <ProjectCard project={project} variant={view === "list" ? "row" : "card"} />
             </li>
           ))}
-        </ul>
-      )}
+        </Stagger>
+      </div>
     </div>
   );
 }

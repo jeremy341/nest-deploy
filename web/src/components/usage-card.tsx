@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/lib/utils";
 import type { ServerView } from "@/server/queries";
 
@@ -32,19 +34,36 @@ function rows(usage: NonNullable<ServerView["usage"]>): Row[] {
   return out;
 }
 
-/** Container usage from the last time we talked to the server. */
+/**
+ * Container usage from the last time we talked to the server: three meters in
+ * one strip. The history lives on the Resources page.
+ */
 export function UsageCard({ server }: { server: ServerView | undefined }) {
   const list = server?.usage ? rows(server.usage) : [];
 
   return (
-    <section aria-labelledby="usage-heading" className="rounded-lg bg-card shadow-border-small">
-      <div className="border-b px-4 py-3">
-        <h2 id="usage-heading" className="text-sm font-medium tracking-[-0.02em]">
-          Container usage
-        </h2>
-        <p className="mt-0.5 text-[13px] text-muted-foreground">
-          {server ? `${server.nestUsername}.hackclub.app` : "No server connected"}
-        </p>
+    <section aria-labelledby="usage-heading" className="overflow-hidden rounded-lg bg-card shadow-border-small">
+      <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+        <div className="min-w-0">
+          <h2 id="usage-heading" className="text-title-3">
+            Container usage
+          </h2>
+          <p className="mt-0.5 truncate text-label text-muted-foreground">
+            {server ? `${server.nestUsername}.hackclub.app` : "No server connected"}
+          </p>
+        </div>
+        {server ? (
+          <Link
+            href="/resources"
+            className="group inline-flex shrink-0 items-center gap-1 text-label font-medium text-muted-foreground transition-colors duration-(--dur-fast) hover:text-foreground max-sm:min-h-10"
+          >
+            Resources
+            <ArrowRightIcon
+              aria-hidden="true"
+              className="size-3.5 transition-transform duration-(--dur-fast) group-hover:translate-x-0.5"
+            />
+          </Link>
+        ) : null}
       </div>
       {list.length === 0 ? (
         <p className="px-4 py-5 text-muted-foreground">
@@ -53,7 +72,7 @@ export function UsageCard({ server }: { server: ServerView | undefined }) {
             : "Connect a server to see its usage."}
         </p>
       ) : (
-        <ul className="hairline-y">
+        <ul className="grid divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {list.map((item) => {
             const ratio = item.total > 0 ? item.used / item.total : 0;
             const hot = ratio >= 0.8;

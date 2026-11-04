@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpenIcon, PlusIcon, SignOutIcon } from "@phosphor-icons/react";
+import { BookOpenIcon, GearSixIcon, PlusIcon, SignOutIcon } from "@phosphor-icons/react";
 import { initials, useAccount } from "@/components/account-context";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -25,7 +25,7 @@ export function UserMenu({ className }: { className?: string }) {
       <DropdownMenuTrigger
         aria-label="Account menu"
         className={cn(
-          "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left font-medium tracking-[-0.02em] outline-none transition-colors hover:bg-[var(--ds-gray-100)] aria-expanded:bg-[var(--ds-gray-100)]",
+          "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left font-medium tracking-[-0.02em] transition-colors duration-(--dur-fast) hover:bg-[var(--ds-gray-alpha-100)] aria-expanded:bg-[var(--ds-gray-alpha-100)] focus-visible:outline-offset-[-2px]",
           className
         )}
       >
@@ -41,6 +41,10 @@ export function UserMenu({ className }: { className?: string }) {
           <DropdownMenuLabel>Signed in as {user.name}</DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuItem render={<Link href="/account" />}>
+          <GearSixIcon />
+          Account settings
+        </DropdownMenuItem>
         <DropdownMenuItem render={<Link href="/connect" />}>
           <PlusIcon />
           Connect a server
@@ -63,7 +67,7 @@ export function UserMenu({ className }: { className?: string }) {
         <form action="/api/auth/logout" method="post">
           <button
             type="submit"
-            className="flex min-h-8 w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm outline-none hover:bg-accent focus-visible:bg-accent"
+            className="flex min-h-8 w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-offset-[-2px] max-sm:min-h-10"
           >
             <SignOutIcon className="size-4" />
             Log out

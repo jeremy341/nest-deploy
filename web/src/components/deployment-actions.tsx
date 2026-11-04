@@ -18,6 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toast } from "@/components/ui/toast";
 import { isActive } from "@/lib/status";
 
 export type ActionableDeployment = {
@@ -46,8 +47,7 @@ export function DeploymentActions({ deployment }: { deployment: ActionableDeploy
         router.refresh();
       }
     } catch (e) {
-      // No toast component yet, so use the browser's own dialog.
-      window.alert(e instanceof Error ? e.message : "Something went wrong");
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
     }
   }
 
@@ -66,7 +66,7 @@ export function DeploymentActions({ deployment }: { deployment: ActionableDeploy
             />
           }
         >
-          <DotsThreeIcon weight="bold" />
+          <DotsThreeIcon aria-hidden="true" weight="bold" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
           <DropdownMenuItem

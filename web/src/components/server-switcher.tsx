@@ -27,7 +27,7 @@ export function ServerSwitcher({ className }: { className?: string }) {
       <DropdownMenuTrigger
         aria-label={`Server: ${label}`}
         className={cn(
-          "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left font-medium tracking-[-0.02em] outline-none transition-colors hover:bg-[var(--ds-gray-100)] aria-expanded:bg-[var(--ds-gray-100)]",
+          "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left font-medium tracking-[-0.02em] transition-colors duration-(--dur-fast) hover:bg-[var(--ds-gray-alpha-100)] aria-expanded:bg-[var(--ds-gray-alpha-100)] focus-visible:outline-offset-[-2px]",
           className
         )}
       >
@@ -40,7 +40,7 @@ export function ServerSwitcher({ className }: { className?: string }) {
         <Badge variant="outline" className="font-normal">
           Nest
         </Badge>
-        <CaretUpDownIcon className="size-4 shrink-0 text-subtle-foreground" />
+        <CaretUpDownIcon aria-hidden="true" className="size-4 shrink-0 text-subtle-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-64" align="start">
         <DropdownMenuGroup>

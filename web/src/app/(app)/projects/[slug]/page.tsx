@@ -7,17 +7,22 @@ import {
   GitBranchIcon,
   GitCommitIcon,
   GithubLogoIcon,
-  WarningCircleIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { DeployButton } from "@/components/deploy-button";
 import { RollbackButton } from "@/components/rollback-button";
+import { ProjectResources } from "@/components/project-resources";
+import { PageHeader } from "@/components/page-header";
 import { ServiceCard } from "@/components/service-status";
-import { StatusDot } from "@/components/status-dot";
+import { ProjectOverviewSkeleton } from "@/components/skeletons/project-overview";
+import { StatusDot, StatusIndicator } from "@/components/status-dot";
+import { Alert } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PixelAvatar } from "@/components/ui/pixel-avatar";
+import type { UiState } from "@/lib/status";
 import { requireUser } from "@/server/auth/current";
-import { deploymentViews, projectViews, serverViews } from "@/server/queries";
-import { cn } from "@/lib/utils";
+import { deploymentViews, projectMetrics, projectViews, serverViews } from "@/server/queries";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -29,24 +34,27 @@ export async function generateMetadata({ params }: Props) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <dt className="mb-1 text-[13px] text-muted-foreground">{label}</dt>
+      <dt className="mb-1 text-label text-muted-foreground">{label}</dt>
       <dd className="font-medium tracking-[-0.02em]">{children}</dd>
     </div>
   );
 }
 
-function ProjectSkeleton() {
-  return (
-    <div aria-busy="true" aria-label="Loading project" className="space-y-6">
-      <div className="skeleton-sweep h-72 w-full rounded-lg" />
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="skeleton-sweep h-40 rounded-lg" />
-        <div className="skeleton-sweep h-40 rounded-lg" />
-        <div className="skeleton-sweep h-40 rounded-lg" />
-      </div>
-    </div>
-  );
-}
+const LIVE_LABEL: Record<UiState, string> = {
+  ready: "Ready",
+  building: "Building",
+  error: "Error",
+  queued: "Queued",
+  canceled: "Canceled",
+};
+
+const LIVE_TONE: Record<UiState, "ready" | "building" | "error" | "neutral"> = {
+  ready: "ready",
+  building: "building",
+  error: "error",
+  queued: "neutral",
+  canceled: "neutral",
+};
 
 async function ProjectContent({ params }: Props) {
   const { slug } = await params;
@@ -54,9 +62,10 @@ async function ProjectContent({ params }: Props) {
   const project = (await projectViews(user.id)).find((p) => p.slug === slug);
   if (!project) notFound();
 
-  const [history, servers] = await Promise.all([
+  const [history, servers, metrics] = await Promise.all([
     deploymentViews(user.id, { projectId: project.id }),
     serverViews(user.id),
+    projectMetrics(user.id, project.id),
   ]);
   const server = servers.find((s) => s.id === project.serverId);
 
@@ -76,63 +85,79 @@ async function ProjectContent({ params }: Props) {
   const address = project.domains[0];
 
   return (
-    <div className="space-y-6">
-      {latest?.state === "error" ? (
-        <div
-          role="status"
-          className="flex gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4"
-        >
-          <WarningCircleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
-          <p>
-            The latest deployment failed
-            {live ? ", and the previous release is still serving traffic" : ""}.{" "}
-            <Link
-              href={`/projects/${slug}/deployments/${latest.id}`}
-              className="font-medium underline"
-            >
-              See the log
-            </Link>
-            .
-          </p>
-        </div>
-      ) : null}
-
-      <section
-        aria-labelledby="production-heading"
-        className="rounded-lg bg-card shadow-border-small"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-          <h2 id="production-heading" className="font-medium tracking-[-0.02em]">
-            Production Deployment
-          </h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <a
-              href={project.repoUrl}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Open repository on GitHub"
-              className={cn(buttonVariants({ variant: "outline", size: "icon" }))}
-            >
-              <GithubLogoIcon />
+    <div className="motion-enter space-y-6">
+      <PageHeader
+        leading={<PixelAvatar seed={slug} size={40} />}
+        title={project.name}
+        description={
+          address ? (
+            <a href={`https://${address}`} target="_blank" rel="noreferrer" className="link">
+              {address}
+              <span className="sr-only"> (opens in a new tab)</span>
             </a>
+          ) : (
+            <>
+              Port <span className="font-mono">{project.port}</span>
+            </>
+          )
+        }
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Open repository on GitHub"
+              render={<a href={project.repoUrl} target="_blank" rel="noreferrer" />}
+            >
+              <GithubLogoIcon aria-hidden="true" />
+            </Button>
             <RollbackButton targetId={rollbackTarget?.id ?? null} projectSlug={slug} />
             <DeployButton
               projectId={project.id}
               projectSlug={slug}
               label={live ? "Redeploy" : "Deploy"}
+              variant={address ? "outline" : "default"}
             />
             {address ? (
-              <a
-                href={`https://${address}`}
-                target="_blank"
-                rel="noreferrer"
-                className={cn(buttonVariants({ variant: "outline" }), "px-3")}
+              <Button
+                className="px-3"
+                render={<a href={`https://${address}`} target="_blank" rel="noreferrer" />}
               >
                 Visit
-                <ArrowUpRightIcon />
-              </a>
+                <ArrowUpRightIcon aria-hidden="true" />
+                <span className="sr-only">(opens in a new tab)</span>
+              </Button>
             ) : null}
-          </div>
+          </>
+        }
+      />
+
+      {latest?.state === "error" ? (
+        <Alert tone="error" role="status">
+          The latest deployment failed
+          {live ? ", and the previous release is still serving traffic" : ""}.{" "}
+          <Link href={`/projects/${slug}/deployments/${latest.id}`} className="link font-medium">
+            See the log
+          </Link>
+          .
+        </Alert>
+      ) : null}
+
+      <section
+        aria-labelledby="production-heading"
+        className="overflow-hidden rounded-lg bg-card shadow-border-small"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+          <h2 id="production-heading" className="text-title-3">
+            Production Deployment
+          </h2>
+          {live ? (
+            <StatusIndicator
+              tone={LIVE_TONE[live.state]}
+              pending={live.state === "building" || live.state === "queued"}
+              label={LIVE_LABEL[live.state]}
+            />
+          ) : null}
         </div>
 
         {live ? (
@@ -140,7 +165,7 @@ async function ProjectContent({ params }: Props) {
             <Field label="Deployment">
               <Link
                 href={`/projects/${slug}/deployments/${live.id}`}
-                className="font-mono text-[13px] font-normal hover:underline"
+                className="link font-mono text-[13px] font-normal"
               >
                 {live.id.slice(0, 8)}
               </Link>
@@ -164,28 +189,29 @@ async function ProjectContent({ params }: Props) {
                   href={`https://${address}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="break-all hover:underline"
+                  className="link break-all"
                 >
                   {address}
+                  <span className="sr-only"> (opens in a new tab)</span>
                 </a>
               ) : (
                 <span className="font-normal text-muted-foreground">
                   Port <span className="font-mono">{project.port}</span>.{" "}
-                  <Link href="/domains" className="underline">
+                  <Link href="/domains" className="link">
                     Add a domain
                   </Link>
                 </span>
               )}
             </Field>
             <div className="min-w-0 sm:col-span-2">
-              <dt className="mb-1 text-[13px] text-muted-foreground">Source</dt>
+              <dt className="mb-1 text-label text-muted-foreground">Source</dt>
               <dd className="space-y-1">
                 <p className="flex items-center gap-1.5 font-mono text-[13px]">
-                  <GitBranchIcon className="size-4 shrink-0" />
+                  <GitBranchIcon aria-hidden="true" className="size-4 shrink-0" />
                   {live.branch}
                 </p>
                 <p className="flex min-w-0 items-center gap-1.5">
-                  <GitCommitIcon className="size-4 shrink-0 text-muted-foreground" />
+                  <GitCommitIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
                   <span className="shrink-0 font-mono text-[13px]">
                     {(live.sha ?? "").slice(0, 7)}
                   </span>
@@ -204,9 +230,9 @@ async function ProjectContent({ params }: Props) {
           </div>
         )}
 
-        <details className="group border-t">
-          <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 font-medium tracking-[-0.02em] select-none [&::-webkit-details-marker]:hidden">
-            <CaretRightIcon className="size-4 transition-transform group-open:rotate-90" />
+        <details className="disclosure border-t">
+          <summary className="items-center gap-2 px-4 py-3 font-medium tracking-[-0.02em] select-none">
+            <CaretRightIcon aria-hidden="true" className="disclosure-caret size-4" />
             Runtime Settings
           </summary>
           <dl className="grid gap-4 px-4 pb-4 sm:grid-cols-4">
@@ -225,7 +251,7 @@ async function ProjectContent({ params }: Props) {
           </dl>
         </details>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-lg border-t bg-background-subtle px-4 py-3 text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-background-subtle px-4 py-3 text-muted-foreground">
           <p>
             {project.autoDeploy ? (
               <>
@@ -237,20 +263,22 @@ async function ProjectContent({ params }: Props) {
               "Automatic deploys are off for this project."
             )}
           </p>
-          <Link
-            href={`/projects/${slug}/deployments`}
-            className={cn(buttonVariants({ variant: "outline" }), "px-3")}
+          <Button
+            variant="outline"
+            className="px-3"
+            render={<Link href={`/projects/${slug}/deployments`} />}
           >
             Deployments
-          </Link>
+          </Button>
         </div>
       </section>
 
       {live ? <ServiceCard projectId={project.id} /> : null}
+      {live ? <ProjectResources points={metrics} /> : null}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <section aria-labelledby="domains-heading" className="rounded-lg bg-card p-4 shadow-border-small">
-          <h2 id="domains-heading" className="mb-3 font-medium tracking-[-0.02em]">
+        <section aria-labelledby="domains-heading" className="h-full rounded-lg bg-card p-4 shadow-border-small">
+          <h2 id="domains-heading" className="mb-3 text-title-3">
             Domains
           </h2>
           {project.domains.length === 0 ? (
@@ -258,7 +286,7 @@ async function ProjectContent({ params }: Props) {
               None yet. Map a domain to port{" "}
               <span className="font-mono text-[13px]">{project.port}</span> in the Nest
               dashboard, then{" "}
-              <Link href="/domains" className="underline">
+              <Link href="/domains" className="link">
                 record it here
               </Link>
               .
@@ -274,8 +302,8 @@ async function ProjectContent({ params }: Props) {
           )}
         </section>
 
-        <section aria-labelledby="container-heading" className="rounded-lg bg-card p-4 shadow-border-small">
-          <h2 id="container-heading" className="mb-3 font-medium tracking-[-0.02em]">
+        <section aria-labelledby="container-heading" className="h-full rounded-lg bg-card p-4 shadow-border-small">
+          <h2 id="container-heading" className="mb-3 text-title-3">
             Container
           </h2>
           {server?.usage ? (
@@ -314,21 +342,25 @@ async function ProjectContent({ params }: Props) {
       </div>
 
       <section aria-labelledby="branches-heading">
-        <h2 id="branches-heading" className="mb-3 text-xl font-semibold tracking-[-0.02em]">
+        <h2 id="branches-heading" className="mb-3 text-title-2">
           Active Branches
         </h2>
         {branches.length === 0 ? (
-          <p className="rounded-lg border border-dashed px-6 py-10 text-center text-muted-foreground">
-            Branches appear here after their first deployment.
-          </p>
+          <div className="rounded-lg bg-card px-4 shadow-border-small">
+            <EmptyState
+              size="compact"
+              icon={<GitBranchIcon />}
+              title="Branches appear here after their first deployment."
+            />
+          </div>
         ) : (
           <ul className="hairline-y overflow-hidden rounded-lg bg-card shadow-border-small">
             {branches.map((d) => (
               <li
                 key={d.branch}
-                className="relative flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--ds-gray-100)]/60"
+                className="row-focus relative flex items-center gap-3 px-4 py-3 transition-colors duration-(--dur-fast) hover:bg-[var(--ds-gray-alpha-100)]"
               >
-                <GitBranchIcon className="size-4 shrink-0 text-muted-foreground" />
+                <GitBranchIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
                 <Link
                   href={`/projects/${slug}/deployments/${d.id}`}
                   className="min-w-0 flex-1 truncate font-mono text-[13px] after:absolute after:inset-0 after:content-['']"
@@ -351,7 +383,7 @@ async function ProjectContent({ params }: Props) {
 
 export default function ProjectPage({ params }: Props) {
   return (
-    <Suspense fallback={<ProjectSkeleton />}>
+    <Suspense fallback={<ProjectOverviewSkeleton />}>
       <ProjectContent params={params} />
     </Suspense>
   );
