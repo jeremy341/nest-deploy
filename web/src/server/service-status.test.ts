@@ -21,6 +21,7 @@ describe("parseServiceStatus", () => {
     "ND_MainPID=4242",
     "ND_NRestarts=2",
     "ND_MemoryCurrent=88080384",
+    "ND_CPUUsageNSec=2500000000",
     "ND_ActiveEnterTimestampMonotonic=1000000000",
     "ND_UPTIME=1000.50",
     "ND_HTTP=200 0.0123",
@@ -34,6 +35,7 @@ describe("parseServiceStatus", () => {
       pid: 4242,
       uptimeSeconds: 1, // 1000.5 s since boot minus 1000 s when it started, rounded
       memoryMb: 84,
+      cpuNs: 2_500_000_000,
       restarts: 2,
       http: { code: 200, ms: 12 },
       checkedAt: at.toISOString(),

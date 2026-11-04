@@ -15,6 +15,8 @@ export type ServiceStatus = {
   uptimeSeconds: number | null;
   /** Memory the service uses, in MB. */
   memoryMb: number | null;
+  /** Total CPU time the service has used so far, in nanoseconds. */
+  cpuNs: number | null;
   /** How many times systemd has restarted it since it was last started by hand. */
   restarts: number | null;
   /** One request to the health path. Code 0 means nothing answered. */
@@ -74,6 +76,10 @@ export function parseServiceStatus(stdout: string, at = new Date()): ServiceStat
     pid: pid && pid > 0 ? pid : null,
     uptimeSeconds,
     memoryMb,
+    cpuNs: (() => {
+      const v = kv.get("CPUUsageNSec");
+      return v && /^[0-9]+$/.test(v) && v !== UNSET ? Number(v) : null;
+    })(),
     restarts: num(kv.get("NRestarts")),
     http,
     checkedAt: at.toISOString(),

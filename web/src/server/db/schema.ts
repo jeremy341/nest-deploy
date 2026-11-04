@@ -1,6 +1,7 @@
 import {
   index,
   integer,
+  real,
   sqliteTable,
   text,
   uniqueIndex,
@@ -117,12 +118,25 @@ export const projects = sqliteTable(
     notifyOn: text("notify_on", { enum: ["all", "failures"] })
       .notNull()
       .default("all"),
+    /** Result of the last uptime check. Alerts fire when this changes, not on every check. */
+    monitorState: text("monitor_state", { enum: ["unknown", "up", "down"] })
+      .notNull()
+      .default("unknown"),
+    monitorSince: ts("monitor_since"),
+    /** Failed checks in a row. One blip is not an outage. */
+    monitorFailures: integer("monitor_failures").notNull().default(0),
+    /** Public key for the analytics snippet. Null means analytics is off. */
+    analyticsKey: text("analytics_key"),
+    /** Unguessable id in the public status page URL. Null means there is no public page. */
+    statusKey: text("status_key"),
     createdAt: ts("created_at").notNull(),
     updatedAt: ts("updated_at").notNull(),
   },
   (t) => [
     uniqueIndex("projects_user_slug_idx").on(t.userId, t.slug),
     uniqueIndex("projects_hook_idx").on(t.hookHash),
+    uniqueIndex("projects_analytics_idx").on(t.analyticsKey),
+    uniqueIndex("projects_status_idx").on(t.statusKey),
     index("projects_user_idx").on(t.userId),
   ]
 );
@@ -170,6 +184,8 @@ export const deployments = sqliteTable(
     branch: text("branch").notNull(),
     commitSha: text("commit_sha"),
     commitMessage: text("commit_message"),
+    /** Pull request this preview was built for, when it came from one. */
+    prNumber: integer("pr_number"),
     author: text("author"),
     /** Port this release listens on. Previews get their own. */
     port: integer("port").notNull(),
@@ -270,3 +286,61 @@ export const auditLog = sqliteTable("audit_log", {
   meta: text("meta"),
   at: ts("at").notNull(),
 });
+
+/** Server load, memory and disk, sampled by the worker so the dashboard can show trends. */
+export const usageSamples = sqliteTable(
+  "usage_samples",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    serverId: text("server_id")
+      .notNull()
+      .references(() => servers.id, { onDelete: "cascade" }),
+    at: ts("at").notNull(),
+    cpuLoad: real("cpu_load"),
+    cpus: integer("cpus"),
+    memUsedMb: integer("mem_used_mb"),
+    memTotalMb: integer("mem_total_mb"),
+    diskUsedMb: integer("disk_used_mb"),
+    diskTotalMb: integer("disk_total_mb"),
+  },
+  (t) => [index("usage_server_at_idx").on(t.serverId, t.at)]
+);
+
+/**
+ * One row per page view reported by the analytics snippet. There is no IP, no
+ * cookie and no user agent here. `visitor` is a hash that changes every day,
+ * so it can count a day's visitors but cannot follow anyone across days.
+ */
+export const pageviews = sqliteTable(
+  "pageviews",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    at: ts("at").notNull(),
+    path: text("path").notNull(),
+    referrer: text("referrer"),
+    visitor: text("visitor").notNull(),
+  },
+  (t) => [index("pageviews_project_at_idx").on(t.projectId, t.at)]
+);
+
+/** Memory, CPU and restarts of one project's service, sampled by the worker. */
+export const projectSamples = sqliteTable(
+  "project_samples",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    at: ts("at").notNull(),
+    memMb: real("mem_mb"),
+    /** Share of one CPU core used since the previous sample, in percent. */
+    cpuPercent: real("cpu_percent"),
+    /** Total CPU time the service has used, in nanoseconds. Used to work out cpuPercent. */
+    cpuNs: real("cpu_ns"),
+    restarts: integer("restarts"),
+  },
+  (t) => [index("project_samples_idx").on(t.projectId, t.at)]
+);

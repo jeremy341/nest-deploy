@@ -4,7 +4,18 @@ import { NextResponse, type NextRequest } from "next/server";
  * Cheap first gate: no session cookie means no dashboard. Real validation
  * (expiry, revocation) happens in the server code that reads the session.
  */
-const PUBLIC = [/^\/$/, /^\/login$/, /^\/api\/auth\//, /^\/api\/webhooks\//, /^\/api\/hooks\//];
+const PUBLIC = [
+  /^\/$/,
+  /^\/login$/,
+  /^\/api\/auth\//,
+  /^\/api\/webhooks\//,
+  /^\/api\/hooks\//,
+  /^\/docs(\/|$)/,
+  // Public by design: the analytics snippet, its collector, and status pages.
+  /^\/api\/analytics\/script$/,
+  /^\/api\/collect\//,
+  /^\/status\//,
+];
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;

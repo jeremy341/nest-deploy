@@ -1,5 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/server/db";
+import { attachPullRequest, closePullRequestPreviews } from "@/server/github/pulls";
 import { enqueueDeployment } from "@/server/projects";
 
 export type WebhookResult = {
@@ -30,6 +31,7 @@ export async function handleGithubEvent(
 ): Promise<WebhookResult> {
   if (event === "ping") return { handled: true, deployments: [], note: "pong" };
   if (event === "installation") return handleInstallation(payload);
+  if (event === "pull_request") return handlePullRequest(payload);
   if (event !== "push") return { handled: false, deployments: [], note: `ignored ${event}` };
 
   const p = payload as PushPayload;
@@ -77,6 +79,76 @@ export async function handleGithubEvent(
       commitSha: p.after,
       commitMessage: p.head_commit?.message?.split("\n")[0]?.slice(0, 300) ?? null,
       author: p.head_commit?.author?.username ?? p.head_commit?.author?.name ?? p.pusher?.name ?? null,
+    });
+    created.push(dep.id);
+  }
+  return { handled: true, deployments: created };
+}
+
+type PullPayload = {
+  action?: string;
+  repository?: { full_name?: string };
+  installation?: { id?: number };
+  pull_request?: {
+    number?: number;
+    draft?: boolean;
+    head?: { ref?: string; sha?: string; repo?: { full_name?: string } | null };
+  };
+};
+
+const BUILD_ACTIONS = new Set(["opened", "reopened", "synchronize", "ready_for_review"]);
+
+/**
+ * A pull request opened, updated or closed. Same-repository pull requests get a
+ * preview (usually the push already started it, so this only links the two);
+ * closing one cleans up after it. Forks are never built.
+ */
+async function handlePullRequest(payload: unknown): Promise<WebhookResult> {
+  const p = payload as PullPayload;
+  const fullName = p.repository?.full_name;
+  const pr = p.pull_request;
+  const number = pr?.number;
+  const branch = pr?.head?.ref;
+  const sha = pr?.head?.sha;
+  if (!fullName || !pr || !number || !branch || !sha) {
+    return { handled: false, deployments: [], note: "incomplete pull request event" };
+  }
+  const action = p.action ?? "";
+  if (action !== "closed" && !BUILD_ACTIONS.has(action)) {
+    return { handled: false, deployments: [], note: `ignored pull_request ${action}` };
+  }
+
+  const db = await getDb();
+  const projects = await db
+    .select()
+    .from(schema.projects)
+    .where(eq(schema.projects.repoFullName, fullName));
+  const trusted = projects.filter(
+    (x) => !(p.installation?.id && x.installationId && p.installation.id !== x.installationId)
+  );
+
+  if (action === "closed") {
+    // Not awaited: it talks to the user's server, and GitHub wants a quick answer.
+    for (const project of trusted) void closePullRequestPreviews(project.id, number);
+    return { handled: true, deployments: [], note: "pull request closed" };
+  }
+
+  if (pr.head?.repo?.full_name !== fullName) {
+    return { handled: false, deployments: [], note: "pull request from a fork is not built" };
+  }
+  if (pr.draft) return { handled: false, deployments: [], note: "draft pull request" };
+
+  const created: string[] = [];
+  for (const project of trusted) {
+    if (!project.autoDeploy || branch === project.productionBranch) continue;
+    const existing = await attachPullRequest(project.id, branch, sha, number);
+    if (existing) continue;
+    const dep = await enqueueDeployment(project, {
+      env: "preview",
+      source: "webhook",
+      branch,
+      commitSha: sha,
+      prNumber: number,
     });
     created.push(dep.id);
   }

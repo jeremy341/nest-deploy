@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
 import { getDb, schema } from "@/server/db";
+import { runMonitorPass } from "@/server/monitor";
 import {
   defaultDeps,
   runDeployJob,
@@ -150,6 +151,8 @@ export type WorkerHandle = { stop: () => Promise<void>; workerId: string };
 export function startWorker(options: {
   concurrency?: number;
   pollMs?: number;
+  /** How often to check uptime and sample usage. 0 turns the monitor off. */
+  monitorMs?: number;
   deps?: PipelineDeps;
   workerId?: string;
   onError?: (err: unknown) => void;
@@ -192,12 +195,28 @@ export function startWorker(options: {
   void tick();
   const staleTimer = setInterval(() => void recoverStaleJobs().catch(options.onError), 5 * 60_000);
 
+  const monitorMs = options.monitorMs ?? Number(process.env.MONITOR_INTERVAL_MS ?? 5 * 60_000);
+  let monitoring = false;
+  const monitorTimer =
+    monitorMs > 0
+      ? setInterval(() => {
+          if (monitoring || stopped) return;
+          monitoring = true;
+          void runMonitorPass(options.onError)
+            .catch(options.onError)
+            .finally(() => {
+              monitoring = false;
+            });
+        }, monitorMs)
+      : null;
+
   return {
     workerId,
     stop: async () => {
       stopped = true;
       clearInterval(interval);
       clearInterval(staleTimer);
+      if (monitorTimer) clearInterval(monitorTimer);
       await Promise.allSettled([...inFlight]);
     },
   };

@@ -183,3 +183,31 @@ export async function notifyDeploymentFinished(deploymentId: string, fetcher: Fe
     console.warn("notification failed", err instanceof Error ? err.message : err);
   }
 }
+
+/**
+ * Tell the project's webhook that the live app stopped answering, or came back.
+ * Never throws: a broken webhook must not stop the monitor.
+ */
+export async function notifyProjectStatus(
+  project: { id: string; slug: string; name: string; notifyUrlEnc: string | null },
+  change: "down" | "up",
+  detail: string,
+  fetcher: Fetcher = fetch
+) {
+  try {
+    if (!project.notifyUrlEnc) return;
+    const { url, kind } = parseNotifyUrl(open(project.notifyUrlEnc, context(project.id)));
+    await post(
+      url,
+      kind,
+      {
+        title: change === "down" ? `${project.name} is not answering` : `${project.name} is back up`,
+        detail,
+        link: appLink(`/projects/${project.slug}`),
+      },
+      fetcher
+    );
+  } catch (err) {
+    console.warn("status notification failed", err instanceof Error ? err.message : err);
+  }
+}

@@ -19,7 +19,7 @@ export class GithubError extends Error {
   }
 }
 
-function headers(token: string, extra: Record<string, string> = {}) {
+export function headers(token: string, extra: Record<string, string> = {}) {
   return {
     accept: "application/vnd.github+json",
     "x-github-api-version": "2022-11-28",

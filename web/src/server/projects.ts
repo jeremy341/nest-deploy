@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
+import { audit } from "@/server/audit";
 import { newId, open, seal } from "@/server/crypto";
 import { getDb, schema } from "@/server/db";
 import { RUNTIMES } from "@/server/db/schema";
@@ -162,6 +163,7 @@ export async function createProject(userId: string, raw: unknown): Promise<Proje
     createdAt: now,
     updatedAt: now,
   });
+  await audit(userId, "project.create", id, { name: input.name });
   return assertOwned(userId, id);
 }
 
@@ -187,6 +189,7 @@ export async function updateProject(userId: string, projectId: string, raw: unkn
     .update(schema.projects)
     .set({ ...clean, updatedAt: new Date() })
     .where(eq(schema.projects.id, project.id));
+  await audit(userId, "project.update", project.id, { fields: Object.keys(clean).join(", ") });
   return assertOwned(userId, projectId);
 }
 
@@ -240,6 +243,7 @@ export async function setEnvVar(userId: string, projectId: string, raw: unknown)
       createdAt: new Date(),
     });
   }
+  await audit(userId, "env.set", project.id, { name: input.key, target: input.target });
 }
 
 /** Names and targets only. Values are never sent back to the browser. */
@@ -260,6 +264,7 @@ export async function deleteEnvVar(userId: string, projectId: string, envId: str
   await db
     .delete(schema.envVars)
     .where(and(eq(schema.envVars.id, envId), eq(schema.envVars.projectId, project.id)));
+  await audit(userId, "env.delete", project.id);
 }
 
 /** Only used by the worker and tests. */
@@ -309,6 +314,7 @@ export type NewDeployment = {
   commitSha?: string | null;
   commitMessage?: string | null;
   author?: string | null;
+  prNumber?: number | null;
   triggeredBy?: string | null;
   /** Reuse an existing release (rollback). */
   releaseId?: string;
@@ -337,6 +343,7 @@ export async function enqueueDeployment(
     branch: input.branch,
     commitSha: input.commitSha ?? null,
     commitMessage: input.commitMessage ?? null,
+    prNumber: input.prNumber ?? null,
     author: input.author ?? null,
     port,
     releaseId: input.releaseId ?? newId(),
@@ -371,6 +378,7 @@ export async function deployBranch(
 /** Build the same commit again. */
 export async function redeploy(userId: string, deploymentId: string) {
   const { project, dep } = await ownedDeployment(userId, deploymentId);
+  await audit(userId, "deploy.redeploy", project.id, { branch: dep.branch });
   return enqueueDeployment(project, {
     env: dep.env,
     source: "redeploy",
@@ -397,6 +405,7 @@ export async function rollback(userId: string, deploymentId: string) {
   if (dep.isCurrent) {
     throw new HttpError(409, "That deployment is already live.", "conflict");
   }
+  await audit(userId, "deploy.rollback", project.id, { sha: dep.commitSha?.slice(0, 7) ?? null });
   return enqueueDeployment(
     project,
     {
@@ -415,7 +424,7 @@ export async function rollback(userId: string, deploymentId: string) {
 }
 
 export async function cancelDeployment(userId: string, deploymentId: string) {
-  const { dep } = await ownedDeployment(userId, deploymentId);
+  const { project, dep } = await ownedDeployment(userId, deploymentId);
   const db = await getDb();
   if (!["queued", "building", "deploying"].includes(dep.state)) {
     throw new HttpError(409, "That deployment is already finished.", "conflict");
@@ -428,6 +437,7 @@ export async function cancelDeployment(userId: string, deploymentId: string) {
     .update(schema.jobs)
     .set({ state: "failed", error: "Canceled" })
     .where(and(eq(schema.jobs.deploymentId, dep.id), eq(schema.jobs.state, "queued")));
+  await audit(userId, "deploy.cancel", project.id, { branch: dep.branch });
 }
 
 export async function ownedDeployment(userId: string, deploymentId: string) {
@@ -477,4 +487,5 @@ export async function deleteProjectRecords(userId: string, projectId: string) {
   const project = await assertOwned(userId, projectId);
   const db = await getDb();
   await db.delete(schema.projects).where(eq(schema.projects.id, project.id));
+  await audit(userId, "project.delete", null, { name: project.name });
 }

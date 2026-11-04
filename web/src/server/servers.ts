@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { audit } from "@/server/audit";
 import { config } from "@/server/config";
 import { newId, open, seal } from "@/server/crypto";
 import { getDb, schema } from "@/server/db";
@@ -124,6 +125,7 @@ export async function rotateServerKey(userId: string, serverId: string) {
       probe: null,
     })
     .where(eq(schema.servers.id, server.id));
+  await audit(userId, "server.rotate_key", null, { server: server.nestUsername });
   return getServerForUser(userId, serverId);
 }
 

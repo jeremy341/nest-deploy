@@ -23,6 +23,7 @@ import {
   renderEnvFile,
   resolveStartCommand,
 } from "@/server/deploy/runtime";
+import { commentDeploymentOnPr } from "@/server/github/pulls";
 import { notifyDeploymentFinished } from "@/server/notify";
 import { connectToServer, type ServerRow } from "@/server/servers";
 import { shellQuote, type NestSession } from "@/server/ssh/connection";
@@ -104,6 +105,7 @@ async function setState(
   if (state === "ready" || state === "error") {
     // Fire and forget: notifyDeploymentFinished never throws.
     void notifyDeploymentFinished(id);
+    void commentDeploymentOnPr(id);
   }
 }
 

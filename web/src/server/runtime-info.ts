@@ -1,23 +1,47 @@
 import { and, eq } from "drizzle-orm";
+import { audit } from "@/server/audit";
 import { getDb, schema } from "@/server/db";
 import { DEFAULT_UNIT_DIR, unitName } from "@/server/deploy/layout";
-import { removePreview, removeProject, runtimeLogs } from "@/server/deploy/remote";
+import { removePreview, removeProject, runtimeLogs, startUnit } from "@/server/deploy/remote";
 import { HttpError } from "@/server/http";
 import { getProjectForUser } from "@/server/projects";
 import { getServerForUser, withServerSession } from "@/server/servers";
 import { probeSession, type NestProbe } from "@/server/ssh/probe";
 
 /** Live output of the production service, read from journald over SSH. */
-export async function fetchRuntimeLogs(userId: string, projectId: string, lines = 200) {
+export async function fetchRuntimeLogs(
+  userId: string,
+  projectId: string,
+  lines = 200,
+  search = ""
+) {
   const project = await getProjectForUser(userId, projectId);
   const server = await getServerForUser(userId, project.serverId);
+  const q = search.trim().toLowerCase().slice(0, 200);
+  // A search looks through the largest window the server will hand over, so
+  // matches are not limited to the few lines the page already shows.
+  const window = q ? 1000 : lines;
   const res = await withServerSession(server, (s) =>
-    s.script(runtimeLogs(unitName(project.slug), lines), { timeoutMs: 30_000 })
+    s.script(runtimeLogs(unitName(project.slug), window), { timeoutMs: 30_000 })
   );
   if (res.code !== 0) {
     throw new HttpError(502, "Could not read the logs from your container.", "upstream");
   }
-  return res.stdout.split(/\r?\n/).filter((l) => l.length > 0);
+  const all = res.stdout.split(/\r?\n/).filter((l) => l.length > 0);
+  return q ? all.filter((l) => l.toLowerCase().includes(q)).slice(-lines) : all;
+}
+
+/** Restart the production service without building anything. */
+export async function restartService(userId: string, projectId: string) {
+  const project = await getProjectForUser(userId, projectId);
+  const server = await getServerForUser(userId, project.serverId);
+  const res = await withServerSession(server, (s) =>
+    s.script(startUnit(unitName(project.slug)), { timeoutMs: 30_000 })
+  );
+  if (res.code !== 0) {
+    throw new HttpError(502, "Could not restart the service. It may not be deployed yet.", "upstream");
+  }
+  await audit(userId, "project.restart", project.id);
 }
 
 export type Usage = {

@@ -1,8 +1,10 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/server/db";
 import { notFound } from "@/server/http";
-import { listServers, publicServer } from "@/server/servers";
+import { getServerForUser, listServers, publicServer } from "@/server/servers";
 import { notifySummary } from "@/server/notify";
+import { getProjectForUser } from "@/server/projects";
+import { statusUrl } from "@/server/status-page";
 import { usageFromProbe } from "@/server/runtime-info";
 import { durationText, timeAgo, uiState, type UiState } from "@/lib/status";
 
@@ -36,6 +38,11 @@ export type ProjectView = {
   lastSha: string | null;
   lastAge: string | null;
   latestDeploymentId: string | null;
+  /** Result of the worker's last uptime check. */
+  monitor: "unknown" | "up" | "down";
+  monitorSince: string | null;
+  analyticsKey: string | null;
+  statusUrl: string | null;
 };
 
 export type DeploymentView = {
@@ -50,9 +57,13 @@ export type DeploymentView = {
   branch: string;
   sha: string | null;
   commit: string | null;
+  /** Pull request number for previews built from one. */
+  pr: number | null;
   author: string | null;
   age: string;
   duration: string;
+  /** Build time in milliseconds, or null while it is still running or never started. */
+  durationMs: number | null;
   port: number;
   isCurrent: boolean;
   cleanedUp: boolean;
@@ -78,9 +89,11 @@ function toDeploymentView(
     branch: d.branch,
     sha: d.commitSha,
     commit: d.commitMessage,
+    pr: d.prNumber,
     author: d.author,
     age: timeAgo(d.createdAt),
     duration: durationText(d.startedAt, d.finishedAt),
+    durationMs: d.startedAt && d.finishedAt ? Math.max(0, d.finishedAt.getTime() - d.startedAt.getTime()) : null,
     port: d.port,
     isCurrent: d.isCurrent,
     cleanedUp: d.cleanedUp,
@@ -140,6 +153,10 @@ export async function projectViews(userId: string): Promise<ProjectView[]> {
       lastSha: d?.commitSha?.slice(0, 7) ?? null,
       lastAge: d ? timeAgo(d.createdAt) : null,
       latestDeploymentId: d?.id ?? null,
+      monitor: p.monitorState,
+      monitorSince: p.monitorSince ? timeAgo(p.monitorSince) : null,
+      analyticsKey: p.analyticsKey,
+      statusUrl: p.statusKey ? statusUrl(p.statusKey) : null,
     };
   });
 }
@@ -203,6 +220,39 @@ export async function serverViews(userId: string) {
 
 export type ServerView = Awaited<ReturnType<typeof serverViews>>[number];
 
+export type UsagePoint = {
+  at: number;
+  /** Each figure as a share of its total, 0 to 1. Null when it was not measured. */
+  cpu: number | null;
+  mem: number | null;
+  disk: number | null;
+};
+
+const share = (used: number | null, total: number | null) =>
+  used !== null && total ? Math.min(Math.max(used / total, 0), 1) : null;
+
+/** Usage samples the worker took for one server, oldest first. */
+export async function usageHistory(
+  userId: string,
+  serverId: string,
+  hours = 24
+): Promise<UsagePoint[]> {
+  const server = await getServerForUser(userId, serverId);
+  const db = await getDb();
+  const since = new Date(Date.now() - hours * 3_600_000);
+  const rows = await db
+    .select()
+    .from(schema.usageSamples)
+    .where(and(eq(schema.usageSamples.serverId, server.id), gte(schema.usageSamples.at, since)))
+    .orderBy(asc(schema.usageSamples.at));
+  return rows.map((r) => ({
+    at: r.at.getTime(),
+    cpu: r.cpuLoad !== null && r.cpus ? Math.min(r.cpuLoad / r.cpus, 1) : null,
+    mem: share(r.memUsedMb, r.memTotalMb),
+    disk: share(r.diskUsedMb, r.diskTotalMb),
+  }));
+}
+
 export async function domainViews(userId: string) {
   const db = await getDb();
   const rows = await db
@@ -224,7 +274,100 @@ export async function domainViews(userId: string) {
     serverId: d.serverId,
     nestUsername: nest,
     projectName: project,
+    projectId: d.projectId,
     cname: d.domain.endsWith(".hackclub.app") ? null : `${nest}.hackclub.app`,
     age: timeAgo(d.createdAt),
   }));
+}
+
+export type ProjectSamplePoint = {
+  at: number;
+  memMb: number | null;
+  cpuPercent: number | null;
+};
+
+/** Memory and CPU samples of one project's service, oldest first. */
+export async function projectMetrics(
+  userId: string,
+  projectId: string,
+  hours = 24
+): Promise<ProjectSamplePoint[]> {
+  const project = await getProjectForUser(userId, projectId);
+  const db = await getDb();
+  const since = new Date(Date.now() - hours * 3_600_000);
+  const rows = await db
+    .select()
+    .from(schema.projectSamples)
+    .where(and(eq(schema.projectSamples.projectId, project.id), gte(schema.projectSamples.at, since)))
+    .orderBy(asc(schema.projectSamples.at));
+  return rows.map((r) => ({ at: r.at.getTime(), memMb: r.memMb, cpuPercent: r.cpuPercent }));
+}
+
+export type ProjectResource = {
+  id: string;
+  serverId: string;
+  slug: string;
+  name: string;
+  /** Result of the worker's last uptime check. */
+  monitor: "unknown" | "up" | "down";
+  memNow: number | null;
+  memPeak: number | null;
+  cpuNow: number | null;
+  cpuPeak: number | null;
+  restarts: number | null;
+  points: ProjectSamplePoint[];
+};
+
+/** What each of the user's projects used over the last `hours`, from the worker's samples. */
+export async function projectResources(userId: string, hours = 24): Promise<ProjectResource[]> {
+  const db = await getDb();
+  const projects = await db
+    .select({
+      id: schema.projects.id,
+      serverId: schema.projects.serverId,
+      slug: schema.projects.slug,
+      name: schema.projects.name,
+      monitor: schema.projects.monitorState,
+    })
+    .from(schema.projects)
+    .where(eq(schema.projects.userId, userId))
+    .orderBy(asc(schema.projects.name));
+  if (projects.length === 0) return [];
+
+  const since = new Date(Date.now() - hours * 3_600_000);
+  const samples = await db
+    .select()
+    .from(schema.projectSamples)
+    .where(
+      and(
+        inArray(
+          schema.projectSamples.projectId,
+          projects.map((p) => p.id)
+        ),
+        gte(schema.projectSamples.at, since)
+      )
+    )
+    .orderBy(asc(schema.projectSamples.at));
+
+  const byProject = new Map<string, typeof samples>();
+  for (const r of samples) {
+    const list = byProject.get(r.projectId) ?? [];
+    list.push(r);
+    byProject.set(r.projectId, list);
+  }
+
+  return projects.map((p) => {
+    const rows = byProject.get(p.id) ?? [];
+    const mem = rows.filter((r) => r.memMb !== null);
+    const cpu = rows.filter((r) => r.cpuPercent !== null);
+    return {
+      ...p,
+      memNow: mem.at(-1)?.memMb ?? null,
+      memPeak: mem.length ? Math.max(...mem.map((r) => r.memMb as number)) : null,
+      cpuNow: cpu.at(-1)?.cpuPercent ?? null,
+      cpuPeak: cpu.length ? Math.max(...cpu.map((r) => r.cpuPercent as number)) : null,
+      restarts: rows.at(-1)?.restarts ?? null,
+      points: rows.map((r) => ({ at: r.at.getTime(), memMb: r.memMb, cpuPercent: r.cpuPercent })),
+    };
+  });
 }

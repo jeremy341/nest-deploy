@@ -8,5 +8,6 @@ export const GET = handle<Ctx>(async (req, { params }) => {
   const { id } = await params;
   const n = Number(req.nextUrl.searchParams.get("lines") ?? 200);
   const lines = Number.isFinite(n) ? Math.min(Math.max(n, 1), 1000) : 200;
-  return ok({ lines: await fetchRuntimeLogs(user.id, id, lines) });
+  const q = req.nextUrl.searchParams.get("q") ?? "";
+  return ok({ lines: await fetchRuntimeLogs(user.id, id, lines, q) });
 });

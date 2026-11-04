@@ -2,6 +2,7 @@ import { promises as dns } from "node:dns";
 import { isIP } from "node:net";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { audit } from "@/server/audit";
 import { newId } from "@/server/crypto";
 import { getDb, schema } from "@/server/db";
 import { HttpError, notFound } from "@/server/http";
@@ -86,6 +87,7 @@ export async function addDomain(userId: string, raw: unknown) {
     status: "pending",
     createdAt: new Date(),
   });
+  await audit(userId, "domain.add", input.projectId ?? null, { domain });
   return {
     domain: (await db.select().from(schema.domains).where(eq(schema.domains.id, id)).get())!,
     instructions: dashboardInstructions(domain, input.port, server.nestUsername),
@@ -110,6 +112,61 @@ export async function removeDomain(userId: string, domainId: string) {
     .get();
   if (!row) throw notFound("Domain not found");
   await db.delete(schema.domains).where(eq(schema.domains.id, row.id));
+  await audit(userId, "domain.remove", null, { domain: row.domain });
+}
+
+export const domainPatch = z
+  .object({
+    projectId: z.string().nullable().optional(),
+    port: z.number().int().min(1).max(65535).optional(),
+  })
+  .refine((v) => v.projectId !== undefined || v.port !== undefined, "Nothing to change");
+
+/**
+ * Point a recorded domain at another project or port. Nest holds the real
+ * mapping, so the caller is told when the Nest dashboard needs the same change.
+ */
+export async function updateDomain(userId: string, domainId: string, raw: unknown) {
+  const input = domainPatch.parse(raw);
+  const db = await getDb();
+  const row = await db
+    .select()
+    .from(schema.domains)
+    .where(and(eq(schema.domains.id, domainId), eq(schema.domains.userId, userId)))
+    .get();
+  if (!row) throw notFound("Domain not found");
+
+  let projectId = row.projectId;
+  let port = input.port ?? row.port;
+  if (input.projectId !== undefined) {
+    if (input.projectId === null) {
+      projectId = null;
+    } else {
+      const project = await db
+        .select()
+        .from(schema.projects)
+        .where(and(eq(schema.projects.id, input.projectId), eq(schema.projects.userId, userId)))
+        .get();
+      if (!project || project.serverId !== row.serverId) throw notFound("Project not found");
+      projectId = project.id;
+      // Moving to a project without naming a port means "use that project's port".
+      if (input.port === undefined) port = project.port;
+    }
+  }
+
+  const portChanged = port !== row.port;
+  await db
+    .update(schema.domains)
+    .set({ projectId, port, ...(portChanged ? { status: "pending" as const, lastCheckedAt: null } : {}) })
+    .where(eq(schema.domains.id, row.id));
+  await audit(userId, "domain.update", projectId, { domain: row.domain, port });
+
+  const server = await getServerForUser(userId, row.serverId);
+  return {
+    domain: (await db.select().from(schema.domains).where(eq(schema.domains.id, row.id)).get())!,
+    needsNestChange: portChanged,
+    instructions: portChanged ? dashboardInstructions(row.domain, port, server.nestUsername) : null,
+  };
 }
 
 export type Resolver = {

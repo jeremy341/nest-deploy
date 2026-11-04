@@ -6,6 +6,8 @@ const base = {
   source: "webhook",
   author: "sam-r",
   cleanedUp: false,
+  pr: null,
+  durationMs: null,
   error: null,
   createdAt: "2026-11-04T10:00:00.000Z",
 };

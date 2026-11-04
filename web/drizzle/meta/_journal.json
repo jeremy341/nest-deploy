@@ -15,6 +15,27 @@
       "when": 1793798161004,
       "tag": "0001_square_jetstream",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793802340096,
+      "tag": "0002_flawless_mikhail_rasputin",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1793804255992,
+      "tag": "0003_wild_logan",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793806555597,
+      "tag": "0004_glossy_spectrum",
+      "breakpoints": true
     }
   ]
 }
