@@ -40,14 +40,13 @@ type Props = {
 type RGB = [number, number, number];
 type Ripple = { x: number; y: number; t0: number };
 
-const REST = 2; // resting pixel size
 const WAVE_SPEED = 520; // px per second
 const WAVE_LIFE = 3.4; // seconds until a drop has fully died away
-const FRONT = 24; // width of the leading crest
-const RING_GAP = 52; // distance between the rings behind the crest
-const TAIL = 170; // how far behind the crest the rings reach
+const FRONT = 34; // width of the leading crest
+const RING_GAP = 84; // distance between the rings behind the crest
+const TAIL = 230; // how far behind the crest the rings reach
 const MAX_DROPS = 8;
-const HOVER_RADIUS = 92;
+const HOVER_RADIUS = 120;
 
 /**
  * Brightness (0..1) of one drop at distance `d` from where it landed, `age`
@@ -96,7 +95,8 @@ export function PixelField({
     const bctx = base.getContext("2d")!;
     const lctx = live.getContext("2d")!;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const max = cell - 4; // biggest a lit pixel gets
+    const REST = Math.max(2, Math.round(cell / 7)); // resting pixel size
+    const max = cell - Math.max(4, Math.round(cell / 6)); // biggest a lit pixel gets
 
     let w = 0;
     let h = 0;

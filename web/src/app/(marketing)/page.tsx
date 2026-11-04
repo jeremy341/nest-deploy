@@ -14,9 +14,14 @@ export const metadata = {
 
 const wrap = "mx-auto w-full max-w-[1400px] px-6";
 const h2 =
-  "max-w-[20ch] text-[clamp(2rem,3.7vw,3.25rem)] leading-[1.05] font-[450] tracking-[-0.04em] text-balance";
+  "font-pixel max-w-[17ch] text-[clamp(2.1rem,4vw,3.5rem)] leading-[1.02] font-medium text-balance";
 const pill =
   "inline-flex h-10 items-center rounded-full px-5 text-[14px] font-medium tracking-[-0.01em] transition-transform active:scale-[0.97]";
+
+/** A small square, the same shape as the pixels in the background. */
+function Square() {
+  return <span aria-hidden="true" className="mt-[0.55em] size-[7px] shrink-0 bg-foreground" />;
+}
 
 function Hero() {
   return (
@@ -24,15 +29,18 @@ function Hero() {
       <div
         className={cn(
           wrap,
-          "relative grid min-h-[620px] items-center gap-12 py-20 lg:grid-cols-[1fr_auto_1fr] lg:gap-16"
+          "grid min-h-[620px] items-center gap-14 py-20 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-20 lg:py-28"
         )}
       >
         <div>
-          <h1 className="text-[clamp(3rem,5.6vw,4.75rem)] leading-[1] font-[450] tracking-[-0.045em]">
+          <h1 className="font-pixel text-[clamp(3.4rem,8.4vw,7.25rem)] leading-[0.92] font-medium">
             Deploy to
             <br />
             your Nest.
           </h1>
+          <p className="mt-8 max-w-[34ch] text-[18px] leading-7 text-muted-foreground">
+            Push to GitHub and your app builds and goes live on your free Hack Club Nest container.
+          </p>
           <div className="mt-9 flex flex-wrap gap-3">
             <Link href="/projects" className={cn(pill, "bg-foreground text-background")}>
               Start deploying
@@ -43,15 +51,19 @@ function Hero() {
           </div>
         </div>
 
-        <div aria-hidden="true" className="mx-auto">
-          <NestMark className="size-[190px] drop-shadow-[0_22px_26px_rgb(0_0_0/0.22)] sm:size-[230px]" />
+        <div className="mx-auto w-full max-w-[380px]">
+          <div aria-hidden="true" className="flex justify-center">
+            <NestMark className="size-[220px] drop-shadow-[0_22px_26px_rgb(0_0_0/0.22)] sm:size-[280px]" />
+          </div>
+          <ul className="font-pixel mt-10 space-y-3 text-[19px] leading-6">
+            {["From any GitHub repo", "To your free Nest container", "With logs, rollbacks and previews"].map((t) => (
+              <li key={t} className="flex gap-3">
+                <Square />
+                {t}
+              </li>
+            ))}
+          </ul>
         </div>
-
-        <ul className="space-y-1.5 text-[15px] lg:justify-self-end">
-          <li>From any GitHub repo</li>
-          <li>To your free Nest container</li>
-          <li>With logs, rollbacks and previews</li>
-        </ul>
       </div>
     </section>
   );
@@ -61,10 +73,10 @@ const WORKS_WITH = ["GitHub", "Hack Club Nest", "Node.js", "Python", "Docker", "
 
 function WorksWith() {
   return (
-    <section aria-label="Works with" className={cn(wrap, "py-12")}>
-      <ul className="flex flex-wrap items-center justify-between gap-x-10 gap-y-5">
+    <section aria-label="Works with" className="border-y bg-background/80 backdrop-blur-[2px]">
+      <ul className={cn(wrap, "flex flex-wrap items-center justify-between gap-x-10 gap-y-4 py-7")}>
         {WORKS_WITH.map((n) => (
-          <li key={n} className="text-[22px] font-semibold tracking-[-0.04em] text-[var(--ds-gray-700)]">
+          <li key={n} className="font-pixel text-[24px] leading-none font-medium text-[var(--ds-gray-700)]">
             {n}
           </li>
         ))}
@@ -73,40 +85,80 @@ function WorksWith() {
   );
 }
 
-/** Left: a short note and a feature list. Right: the headline and the real UI. */
+/** A short note and a feature list beside a headline and the real UI. `flip` puts the note on the right. */
 function Showcase({
   id,
   note,
   features,
   title,
+  flip = false,
   children,
 }: {
   id?: string;
   note: string;
   features: string[];
   title: string;
+  flip?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <section id={id} className="scroll-mt-14 py-24 lg:py-32">
-      <div className={cn(wrap, "grid gap-12 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-20")}>
-        <div className="order-2 lg:order-1 lg:self-end lg:pb-2">
+      <div
+        className={cn(
+          wrap,
+          "grid gap-12 lg:gap-20",
+          flip ? "lg:grid-cols-[minmax(0,1fr)_260px]" : "lg:grid-cols-[260px_minmax(0,1fr)]"
+        )}
+      >
+        <div className={cn("order-2 lg:self-end lg:pb-2", flip ? "lg:order-2" : "lg:order-1")}>
           <p className="max-w-[28ch] text-[18px] leading-7">{note}</p>
-          <p className="mt-10 text-[13px] text-muted-foreground">Features</p>
-          <ul className="mt-3 space-y-1.5 text-[14px]">
+          <p className="font-pixel mt-10 text-[16px] text-muted-foreground">Features</p>
+          <ul className="mt-3 space-y-2 text-[14px]">
             {features.map((f) => (
-              <li key={f}>{f}</li>
+              <li key={f} className="flex gap-2.5">
+                <Square />
+                {f}
+              </li>
             ))}
           </ul>
         </div>
-        <div className="order-1 lg:order-2">
-          <h2 className={h2}>{title}</h2>
+        <div className={cn("order-1", flip ? "lg:order-1" : "lg:order-2")}>
+          <h2 className={cn(h2, flip && "lg:ml-0")}>{title}</h2>
           <div className="mt-12 rounded-2xl bg-[var(--ds-gray-100)] p-4 sm:p-8 lg:p-12">
             <div inert aria-hidden="true" className="overflow-hidden rounded-xl bg-background shadow-menu">
               {children}
             </div>
           </div>
         </div>
+      </div>
+    </section>
+  );
+}
+
+const STEPS = [
+  ["Sign in", "Log in with Hack Club. It confirms who you are and nothing more."],
+  ["Add a key", "Paste the key we make into the SSH Keys page of your Nest dashboard, then test the connection."],
+  ["Import a repo", "Pick a repository, set the port your app listens on, and deploy. After that, every push does it."],
+];
+
+function Start() {
+  return (
+    <section id="start" className="scroll-mt-14 border-y bg-background/80 py-24 backdrop-blur-[2px] lg:py-32">
+      <div className={wrap}>
+        <h2 className={h2}>Three steps, once.</h2>
+        <ol className="mt-16 grid gap-12 md:grid-cols-3 md:gap-8">
+          {STEPS.map(([t, d], i) => (
+            <li key={t}>
+              <span className="font-pixel block text-[clamp(4rem,7vw,6rem)] leading-none font-medium text-[var(--ds-gray-400)]">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <h3 className="font-pixel mt-5 border-t border-foreground pt-5 text-[22px] leading-none font-medium">
+                {t}
+              </h3>
+              <p className="mt-3 max-w-[34ch] leading-7 text-muted-foreground">{d}</p>
+            </li>
+          ))}
+        </ol>
       </div>
     </section>
   );
@@ -125,56 +177,38 @@ const LEDGER = [
 function Security() {
   return (
     <section id="security" className="scroll-mt-14 py-24 lg:py-32">
-      <div className={cn(wrap, "grid gap-12 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-20")}>
-        <div className="order-2 lg:order-1 lg:self-end">
-          <p className="max-w-[30ch] text-[18px] leading-7">
-            SSH into Nest puts you in a root shell inside your own container, so the key we hold
-            can do anything you can do there. We say so before you add it.
-          </p>
-          <a
-            href={REPO_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-8 inline-block text-[14px] font-medium underline underline-offset-4"
-          >
-            Read the source
-          </a>
-        </div>
-        <div className="order-1 lg:order-2">
-          <h2 className={h2}>You hold the key, and you can take it back.</h2>
-          <dl className="mt-12 divide-y border-y">
-            {LEDGER.map(([term, text]) => (
-              <div key={term} className="grid gap-1 py-5 sm:grid-cols-[200px_minmax(0,1fr)] sm:gap-10">
-                <dt className="font-medium tracking-[-0.01em]">{term}</dt>
-                <dd className="max-w-[58ch] leading-7 text-muted-foreground">{text}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-const STEPS = [
-  ["Sign in", "Log in with Hack Club. It confirms who you are and nothing more."],
-  ["Add a key", "Paste the key we make into the SSH Keys page of your Nest dashboard, then test the connection."],
-  ["Import a repo", "Pick a repository, set the port your app listens on, and deploy. After that, every push does it."],
-];
-
-function Start() {
-  return (
-    <section className="border-t py-24 lg:py-32">
       <div className={wrap}>
-        <h2 className={h2}>Three steps, once.</h2>
-        <ol className="mt-14 grid gap-10 md:grid-cols-3">
-          {STEPS.map(([t, d]) => (
-            <li key={t} className="border-t border-foreground pt-5">
-              <h3 className="text-[17px] font-medium tracking-[-0.02em]">{t}</h3>
-              <p className="mt-2 max-w-[34ch] leading-7 text-muted-foreground">{d}</p>
-            </li>
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:items-end lg:gap-20">
+          <h2 className={cn(h2, "max-w-[20ch]")}>You hold the key, and you can take it back.</h2>
+          <div>
+            <p className="max-w-[40ch] text-[18px] leading-7">
+              SSH into Nest puts you in a root shell inside your own container, so the key we hold
+              can do anything you can do there. We say so before you add it.
+            </p>
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-6 inline-block text-[14px] font-medium underline underline-offset-4"
+            >
+              Read the source
+            </a>
+          </div>
+        </div>
+        <dl className="mt-16 grid border-t md:grid-cols-2">
+          {LEDGER.map(([term, text], i) => (
+            <div
+              key={term}
+              className={cn(
+                "border-b bg-background/80 py-7 backdrop-blur-[2px] md:px-8",
+                i % 2 === 0 ? "md:border-r md:pl-0" : "md:pr-0"
+              )}
+            >
+              <dt className="font-pixel text-[21px] leading-none font-medium">{term}</dt>
+              <dd className="mt-3 max-w-[48ch] leading-7 text-muted-foreground">{text}</dd>
+            </div>
           ))}
-        </ol>
+        </dl>
       </div>
     </section>
   );
@@ -191,15 +225,13 @@ const FAQ = [
 
 function Faq() {
   return (
-    <section id="faq" className="scroll-mt-14 border-t py-24 lg:py-32">
+    <section id="faq" className="scroll-mt-14 border-y bg-background/80 py-24 backdrop-blur-[2px] lg:py-32">
       <div className={cn(wrap, "grid gap-12 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-20")}>
-        <h2 className="text-[clamp(1.75rem,2.6vw,2.25rem)] leading-[1.1] font-[450] tracking-[-0.04em]">
-          Questions
-        </h2>
+        <h2 className="font-pixel text-[clamp(2rem,3vw,2.75rem)] leading-none font-medium">Questions</h2>
         <dl className="grid gap-x-14 gap-y-10 md:grid-cols-2">
           {FAQ.map(([q, a]) => (
             <div key={q}>
-              <dt className="font-medium tracking-[-0.01em]">{q}</dt>
+              <dt className="font-pixel text-[19px] leading-6 font-medium">{q}</dt>
               <dd className="mt-2 max-w-[48ch] leading-7 text-muted-foreground">{a}</dd>
             </div>
           ))}
@@ -211,9 +243,9 @@ function Faq() {
 
 function Cta() {
   return (
-    <section className="border-t">
-      <div className={cn(wrap, "py-28 text-center lg:py-36")}>
-        <h2 className="mx-auto max-w-[14ch] text-[clamp(2.5rem,5vw,4rem)] leading-[1] font-[450] tracking-[-0.045em]">
+    <section>
+      <div className={cn(wrap, "py-28 text-center lg:py-40")}>
+        <h2 className="font-pixel mx-auto max-w-[12ch] text-[clamp(2.75rem,6vw,5rem)] leading-[0.95] font-medium">
           Ready to deploy?
         </h2>
         <div className="mt-9 flex flex-wrap justify-center gap-3">
@@ -246,12 +278,16 @@ export default function HomePage() {
         note="Push to main and it is live. Push any other branch and it gets a preview on its own port."
         features={["Build sandbox", "Release switching", "Branch previews", "Streaming logs"]}
       >
-        <div className="p-4 sm:p-6">
+        {/* On a phone the demo is too narrow for commit and branch, so those drop out. */}
+        <div className="p-3 sm:p-6 max-sm:[&_p.font-mono]:hidden">
           <DeploymentsView deployments={SAMPLE_DEPLOYMENTS} showProject={false} />
         </div>
       </Showcase>
 
+      <Start />
+
       <Showcase
+        flip
         title="If it won't start, it won't ship."
         note="A new release has to answer on its port before it counts. If it stays silent, the old one is put back."
         features={["Health checks", "Automatic revert", "Instant rollback", "Kept releases"]}
@@ -262,7 +298,6 @@ export default function HomePage() {
       </Showcase>
 
       <Security />
-      <Start />
       <Faq />
       <Cta />
     </>

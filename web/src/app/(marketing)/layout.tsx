@@ -1,8 +1,11 @@
+import { Pixelify_Sans } from "next/font/google";
 import Link from "next/link";
 import { NestMark } from "@/components/nest-mark";
 import { PixelField } from "@/components/pixel-field";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NEST_GUIDES_URL, REPO_URL } from "@/lib/site";
+
+const pixel = Pixelify_Sans({ variable: "--font-pixel", subsets: ["latin"] });
 
 const NAV = [
   { href: "#product", label: "Product" },
@@ -15,8 +18,8 @@ const small =
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
-      <PixelField fixed autoDrops cell={16} />
+    <div className={`${pixel.variable} flex flex-1 flex-col`}>
+      <PixelField fixed autoDrops cell={30} />
       <a
         href="#top"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:shadow-menu"
@@ -28,7 +31,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-8 px-6">
           <Link href="/" aria-label="Nest Deploy, home" className="flex items-center gap-2 rounded-md outline-offset-4">
             <NestMark className="size-6" />
-            <span className="text-[15px] font-semibold tracking-[-0.03em]">Nest Deploy</span>
+            <span className="font-pixel text-[19px] leading-none font-semibold">Nest Deploy</span>
           </Link>
 
           <nav aria-label="Page sections" className="hidden items-center gap-6 md:flex">
@@ -62,7 +65,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           <div>
             <Link href="/" className="flex items-center gap-2">
               <NestMark className="size-6" />
-              <span className="text-[15px] font-semibold tracking-[-0.03em]">Nest Deploy</span>
+              <span className="font-pixel text-[19px] leading-none font-semibold">Nest Deploy</span>
             </Link>
             <p className="mt-4 max-w-[36ch] text-[14px] leading-6 text-muted-foreground">
               Made by a Hack Club member. Not an official Hack Club product; the Nest team does
@@ -100,6 +103,6 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           </nav>
         </div>
       </footer>
-    </>
+    </div>
   );
 }

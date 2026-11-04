@@ -87,8 +87,8 @@ export function DeploymentRow({
           <span>
             <EnvPill deployment={deployment} />
           </span>
-          <p className="flex min-w-0 flex-1 items-center gap-3 font-mono text-[13px] text-muted-foreground">
-            <span className="flex items-center gap-1">
+          <p className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden font-mono text-[13px] text-muted-foreground">
+            <span className="flex shrink-0 items-center gap-1">
               <GitCommitIcon className="size-4 shrink-0" />
               {(deployment.sha ?? deployment.id).slice(0, 7)}
             </span>
