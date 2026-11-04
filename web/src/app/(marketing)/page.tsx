@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { BuildLogs } from "@/components/build-logs";
 import { DeploymentsView } from "@/components/deployments-view";
-import { NestMark } from "@/components/nest-mark";
 import { REPO_URL } from "@/lib/site";
 import { SAMPLE_DEPLOYMENTS, SAMPLE_LOG } from "@/lib/sample";
 import { cn } from "@/lib/utils";
@@ -23,64 +22,63 @@ function Square() {
   return <span aria-hidden="true" className="mt-[0.55em] size-[7px] shrink-0 bg-foreground" />;
 }
 
+const WORKS_WITH = ["GitHub", "Hack Club Nest", "Node.js", "Python", "Docker", "systemd"];
+
+/** A crosshair at a corner of the frame, as on vercel.com. */
+function Plus({ className }: { className: string }) {
+  return (
+    <span aria-hidden="true" className={cn("absolute size-[13px]", className)}>
+      <span className="absolute top-1/2 left-0 h-px w-full bg-foreground" />
+      <span className="absolute top-0 left-1/2 h-full w-px bg-foreground" />
+    </span>
+  );
+}
+
 function Hero() {
   return (
     <section>
-      <div
-        className={cn(
-          wrap,
-          "grid min-h-[620px] items-center gap-14 py-20 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-20 lg:py-28"
-        )}
-      >
-        <div>
-          <h1 className="font-pixel text-[clamp(3.4rem,8.4vw,7.25rem)] leading-[0.92] font-medium">
-            Deploy to
-            <br />
-            your Nest.
-          </h1>
-          <p className="mt-8 max-w-[34ch] text-[18px] leading-7 text-muted-foreground">
-            Push to GitHub and your app builds and goes live on your free Hack Club Nest container.
-          </p>
-          <div className="mt-9 flex flex-wrap gap-3">
-            <Link href="/projects" className={cn(pill, "bg-foreground text-background")}>
-              Start deploying
-            </Link>
-            <a href="#product" className={cn(pill, "shadow-border-base bg-background hover:bg-[var(--ds-gray-100)]")}>
-              How it works
-            </a>
-          </div>
+      <div className={cn(wrap, "pt-24 pb-20 text-center sm:pt-32 sm:pb-24")}>
+        <h1 className="font-pixel mx-auto max-w-[13ch] text-[clamp(3rem,7.6vw,6.5rem)] leading-[0.95] font-medium text-balance">
+          Deploy to your Nest.
+        </h1>
+        <p className="mx-auto mt-7 max-w-[44ch] text-[clamp(1.0625rem,1.5vw,1.25rem)] leading-[1.55] text-muted-foreground text-balance">
+          Push to GitHub and your app builds and goes live on your free Hack Club Nest container,
+          with logs, rollbacks and previews.
+        </p>
+        <div className="mt-9 flex flex-wrap justify-center gap-3">
+          <Link href="/projects" className={cn(pill, "h-11 bg-foreground px-6 text-background")}>
+            Start deploying
+          </Link>
+          <a
+            href="#product"
+            className={cn(pill, "shadow-border-base h-11 bg-background px-6 hover:bg-[var(--ds-gray-100)]")}
+          >
+            How it works
+          </a>
         </div>
+      </div>
 
-        <div className="mx-auto w-full max-w-[380px]">
-          <div aria-hidden="true" className="flex justify-center">
-            <NestMark className="size-[220px] drop-shadow-[0_22px_26px_rgb(0_0_0/0.22)] sm:size-[280px]" />
-          </div>
-          <ul className="font-pixel mt-10 space-y-3 text-[19px] leading-6">
-            {["From any GitHub repo", "To your free Nest container", "With logs, rollbacks and previews"].map((t) => (
-              <li key={t} className="flex gap-3">
-                <Square />
-                {t}
+      <div className={wrap}>
+        <div className="relative">
+          <Plus className="-top-1.5 -left-1.5 z-10" />
+          <Plus className="-top-1.5 -right-1.5 z-10" />
+          <Plus className="-bottom-1.5 -left-1.5 z-10" />
+          <Plus className="-right-1.5 -bottom-1.5 z-10" />
+          <ul
+            aria-label="Works with"
+            className="grid grid-cols-2 gap-px border bg-border sm:grid-cols-3 lg:grid-cols-6"
+          >
+            {WORKS_WITH.map((n) => (
+              <li
+                key={n}
+                className="font-pixel flex h-24 items-center justify-center bg-background px-4 text-center text-[22px] leading-none font-medium text-[var(--ds-gray-900)]"
+              >
+                {n}
               </li>
             ))}
           </ul>
         </div>
       </div>
-    </section>
-  );
-}
-
-const WORKS_WITH = ["GitHub", "Hack Club Nest", "Node.js", "Python", "Docker", "systemd"];
-
-function WorksWith() {
-  return (
-    <section aria-label="Works with" className="border-y bg-background/80 backdrop-blur-[2px]">
-      <ul className={cn(wrap, "flex flex-wrap items-center justify-between gap-x-10 gap-y-4 py-7")}>
-        {WORKS_WITH.map((n) => (
-          <li key={n} className="font-pixel text-[24px] leading-none font-medium text-[var(--ds-gray-700)]">
-            {n}
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }
@@ -270,7 +268,6 @@ export default function HomePage() {
   return (
     <>
       <Hero />
-      <WorksWith />
 
       <Showcase
         id="product"
