@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
 
 /**
- * The mark: a nest made of pixels, with one ember pixel resting in it.
- * Five columns by five rows. The bowl follows the text colour.
+ * The mark: a nest drawn in pixels with one egg resting in it. One colour, so
+ * it works in black, white or anything else that sets `color`.
  */
 const BOWL: [number, number][] = [
   [0, 2],
@@ -28,8 +28,8 @@ export function NestMark({ className }: { className?: string }) {
       {BOWL.map(([x, y]) => (
         <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="currentColor" />
       ))}
-      <rect x="2" y="1" width="1" height="1" fill="var(--brand)" />
-      <rect x="2" y="2" width="1" height="1" fill="var(--brand)" opacity="0.45" />
+      <rect x="2" y="1" width="1" height="1" fill="currentColor" />
+      <rect x="2" y="2" width="1" height="1" fill="currentColor" opacity="0.4" />
     </svg>
   );
 }

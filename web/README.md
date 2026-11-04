@@ -29,8 +29,8 @@ Vercel's Geist docs name a component package (`@vercel/geistcn`), but it is not 
 ## Design rules
 
 - **Layout:** a 256px left sidebar and a 56px top bar on desktop (switching to project links inside a project). Below 1024px the sidebar becomes a floating Find / menu pill and a full-screen menu. Import (`/new`) has no sidebar, as on Vercel.
-- **Brand:** one accent, ember orange (`--brand`), used for buttons, pixels, focus and the current-production pill. Black and white carry everything else; status colors stay for status only. Text on ember is near-black; ember as text on a light page uses the deeper `--brand-text`.
-- **Pixel grid:** `components/pixel-field.tsx`. Hover swells and lights pixels, click or tap drops a ring of light, and an idle drop falls now and then. It sleeps when offscreen or idle and has a static, no-wave mode for reduced motion.
+- **Accent:** Vercel's blue (`--brand`), used for focus, links and the current-production pill. Everything else is black, white and the Geist gray scale. Primary buttons are black, as on Vercel.
+- **Pixel grid:** `components/pixel-field.tsx`, a quiet monochrome grid used on the homepage hero, login and 404. Hover lights pixels, click drops a ring of light. It sleeps when idle or offscreen and has a static mode for reduced motion.
 - **Shape lock:** controls 6px, cards and menus 8px, badges and avatars fully round.
 - **One accent:** blue `#0070f3` (`#3291ff` in dark mode) for focus rings and info. Status colors are used only for real state.
 - **Borders are box-shadows:** `shadow-border`, `shadow-border-small`, `shadow-menu` and `shadow-modal` utilities wrap the `--ds-shadow-*` tokens. Rows in a list share one hairline.
@@ -43,7 +43,7 @@ Vercel's Geist docs name a component package (`@vercel/geistcn`), but it is not 
 
 | Route | Screen |
 | --- | --- |
-| `/` | Public homepage: what it is, how it works, security, FAQ (pixel grid hero) |
+| `/` | Public homepage, modelled on vercel.com's: light type, a centred mark, and the real dashboard components shown with sample data |
 | `/projects` | Dashboard home: projects, container usage, alerts and recent deployments |
 | `/projects/[slug]` | Project overview: production deployment, runtime, summary cards, active branches |
 | `/projects/[slug]/deployments` | Deployments for one project |

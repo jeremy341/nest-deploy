@@ -25,8 +25,8 @@ type Props = {
   cell?: number;
   /** Let a drop fall now and then without any input. */
   autoDrops?: boolean;
-  /** "brand" is for sitting on an ember background: ink dots, cream light. */
-  tone?: "default" | "brand";
+  /** "mono" lights pixels in the page's text colour instead of the accent. */
+  tone?: "default" | "mono";
   className?: string;
 };
 
@@ -83,13 +83,14 @@ export function PixelField({ cell = 18, autoDrops = false, tone = "default", cla
     const px = (v: number) => Math.round(v * dpr) / dpr;
 
     function readColors() {
-      if (tone === "brand") {
-        dot = [20, 17, 15];
-        dotAlpha = 0.22;
-        brand = [255, 243, 227];
+      const cs = getComputedStyle(host);
+      if (tone === "mono") {
+        const ink = parseColor(cs.color);
+        dot = [ink[0], ink[1], ink[2]];
+        dotAlpha = 0.14;
+        brand = [ink[0], ink[1], ink[2]];
         return;
       }
-      const cs = getComputedStyle(host);
       const d = parseColor(cs.getPropertyValue("--pixel-dot") || "rgb(128 128 128 / 0.2)");
       const b = parseColor(cs.getPropertyValue("--brand") || "#ff5a1f");
       dot = [d[0], d[1], d[2]];

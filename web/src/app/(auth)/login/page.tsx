@@ -48,7 +48,7 @@ async function LoginContent({
             href="/api/auth/login"
             aria-disabled={!hackClub}
             className={cn(
-              buttonVariants({ variant: "brand", size: "lg" }),
+              buttonVariants({ size: "lg" }),
               "w-full",
               !hackClub && "pointer-events-none opacity-50"
             )}

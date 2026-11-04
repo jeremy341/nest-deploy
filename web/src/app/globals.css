@@ -21,7 +21,6 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-geist-sans);
-  --font-pixel: var(--font-pixel);
 
   --color-background: var(--background);
   --color-background-subtle: var(--background-subtle);
@@ -141,7 +140,7 @@
   --destructive: var(--ds-red-900);
   --border: var(--ds-gray-alpha-400);
   --input: var(--ds-gray-alpha-500);
-  --ring: #e24a10;
+  --ring: var(--ds-focus-color);
 
   --success: var(--ds-green-900);
   --warning: var(--ds-amber-900);
@@ -150,18 +149,12 @@
   --status-building: var(--ds-amber-700);
   --status-error: var(--ds-red-800);
 
-  /*
-    Brand: "ember". One warm orange for the whole product. It fills buttons
-    and pixels, so text on it is near-black (7:1). As text on a light page it
-    uses --brand-text, a deeper shade that reaches 5:1.
-  */
-  --brand: #ff5a1f;
-  --brand-foreground: #1a0b03;
-  --brand-soft: #fff0e8;
-  --brand-text: #c2410a;
+  /* Accent: Vercel's blue. Used for focus, links and the current-production pill. */
+  --brand: var(--ds-blue-700);
+  --brand-foreground: #ffffff;
+  --brand-soft: var(--ds-blue-100);
+  --brand-text: var(--ds-blue-900);
   --pixel-dot: rgb(0 0 0 / 0.16);
-  --ds-focus-color: #e24a10;
-  --ds-focus-ring: 0 0 0 2px hsl(0 0% 100%), 0 0 0 4px #e24a10;
 }
 
 .dark {
@@ -218,14 +211,11 @@
   --destructive: var(--ds-red-900);
   --status-ready: var(--ds-teal-600);
 
-  --brand: #ff6a33;
-  --brand-foreground: #1a0b03;
-  --brand-soft: #2a1409;
-  --brand-text: #ff8a5c;
+  --brand: var(--ds-blue-700);
+  --brand-foreground: #ffffff;
+  --brand-soft: var(--ds-blue-100);
+  --brand-text: var(--ds-blue-900);
   --pixel-dot: rgb(255 255 255 / 0.14);
-  --ds-focus-color: #ff7a47;
-  --ds-focus-ring: 0 0 0 2px hsl(0 0% 4%), 0 0 0 4px #ff7a47;
-  --ring: #ff7a47;
 }
 
 @utility shadow-border {

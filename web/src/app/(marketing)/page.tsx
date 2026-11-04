@@ -1,204 +1,117 @@
 import Link from "next/link";
-import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
-import { HatchControls } from "@/components/marketing/hatch-controls";
-import { PixelNest } from "@/components/marketing/pixel-nest";
-import { PushTicker } from "@/components/marketing/push-ticker";
-import { ReleaseStrip } from "@/components/marketing/release-strip";
+import { BuildLogs } from "@/components/build-logs";
+import { DeploymentsView } from "@/components/deployments-view";
+import { NestMark } from "@/components/nest-mark";
 import { PixelField } from "@/components/pixel-field";
 import { REPO_URL } from "@/lib/site";
+import { SAMPLE_DEPLOYMENTS, SAMPLE_LOG } from "@/lib/sample";
 import { cn } from "@/lib/utils";
 
 export const metadata = {
   title: { absolute: "Nest Deploy: push to GitHub, live on your Nest" },
   description:
-    "Nest Deploy builds your GitHub repo and puts it on your free Hack Club Nest container. No scp, no hand-written systemd files, no 1am SSH.",
+    "Nest Deploy builds your GitHub repo and runs it on your free Hack Club Nest container, with logs, rollbacks and branch previews.",
 };
 
-const wrap = "mx-auto w-full max-w-[1200px] px-5 sm:px-8";
-const display = "font-[family-name:var(--font-display)] font-extrabold tracking-[-0.035em]";
-const inkButton =
-  "inline-flex h-12 items-center gap-2 rounded-md bg-[#14110F] px-5 text-[15px] font-medium tracking-[-0.02em] text-[#FFF3E3] transition-transform active:scale-[0.97]";
+const wrap = "mx-auto w-full max-w-[1400px] px-6";
+const h2 =
+  "max-w-[20ch] text-[clamp(2rem,3.7vw,3.25rem)] leading-[1.05] font-[450] tracking-[-0.04em] text-balance";
+const pill =
+  "inline-flex h-10 items-center rounded-full px-5 text-[14px] font-medium tracking-[-0.01em] transition-transform active:scale-[0.97]";
 
 function Hero() {
   return (
-    <section className="relative isolate overflow-hidden bg-brand text-brand-foreground">
-      <PixelNest />
-      <div className={cn(wrap, "relative min-h-[820px] pt-12 pb-[300px] lg:min-h-[660px] lg:pt-20 lg:pb-24")}>
-        <div className="max-w-[620px]">
-          <h1 className={cn(display, "text-[clamp(3.6rem,9.5vw,8rem)] leading-[0.88]")}>
-            Push it.
+    <section className="relative isolate overflow-hidden">
+      <PixelField
+        tone="mono"
+        cell={16}
+        className="[mask-image:radial-gradient(ellipse_65%_80%_at_50%_48%,black,transparent)]"
+      />
+      <div
+        className={cn(
+          wrap,
+          "relative grid min-h-[620px] items-center gap-12 py-20 lg:grid-cols-[1fr_auto_1fr] lg:gap-16"
+        )}
+      >
+        <div>
+          <h1 className="text-[clamp(3rem,5.6vw,4.75rem)] leading-[1] font-[450] tracking-[-0.045em]">
+            Deploy to
             <br />
-            Watch it hatch.
+            your Nest.
           </h1>
-          <p className="mt-7 max-w-[46ch] text-[19px] leading-7">
-            Nest Deploy builds your GitHub repo and puts it on your free Hack Club Nest. No scp,
-            no hand-written systemd files, no 1am SSH.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4">
-            <Link href="/projects" className={inkButton}>
-              Deploy your first project
-              <ArrowRightIcon />
+          <div className="mt-9 flex flex-wrap gap-3">
+            <Link href="/projects" className={cn(pill, "bg-foreground text-background")}>
+              Start deploying
             </Link>
-            <a
-              href="#replaces"
-              className="font-medium underline decoration-2 underline-offset-4 outline-offset-4 transition-opacity hover:opacity-70"
-            >
-              What does it replace?
+            <a href="#product" className={cn(pill, "shadow-border-base bg-background hover:bg-[var(--ds-gray-100)]")}>
+              How it works
             </a>
           </div>
-          <div className="mt-8">
-            <HatchControls />
-          </div>
         </div>
+
+        <div aria-hidden="true" className="mx-auto">
+          <NestMark className="size-[190px] drop-shadow-[0_22px_26px_rgb(0_0_0/0.22)] sm:size-[230px]" />
+        </div>
+
+        <ul className="space-y-1.5 text-[15px] lg:justify-self-end">
+          <li>From any GitHub repo</li>
+          <li>To your free Nest container</li>
+          <li>With logs, rollbacks and previews</li>
+        </ul>
       </div>
     </section>
   );
 }
 
-const MANUAL = [
-  "npm run build",
-  "tar czf release.tgz dist package.json",
-  "scp release.tgz you@hackclub.app:~/",
-  "ssh you@hackclub.app",
-  "tar xzf release.tgz -C ~/app && cd ~/app",
-  "npm ci --omit=dev",
-  "nano /etc/systemd/system/app.service",
-  "systemctl daemon-reload && systemctl restart app",
-  "curl localhost:3000",
-  "# it didn't work. journalctl -u app, then do it all again",
-];
+const WORKS_WITH = ["GitHub", "Hack Club Nest", "Node.js", "Python", "Docker", "systemd"];
 
-function Replaces() {
+function WorksWith() {
   return (
-    <section id="replaces" className="scroll-mt-4 py-24 lg:py-36">
-      <div className={cn(wrap, "grid gap-14 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-20")}>
-        <div>
-          <h2 className={cn(display, "text-[clamp(2.25rem,5vw,4.25rem)] leading-[0.95]")}>
-            This is what a deploy used to be.
-          </h2>
-          <pre
-            tabIndex={0}
-            aria-label="Ten manual deploy commands"
-            className="mt-10 overflow-x-auto rounded-md bg-[#14110F] p-6 font-mono text-[13.5px] leading-7 text-[#FFF3E3]"
-          >
-            {MANUAL.map((l) => (
-              <span key={l} className={cn("block", l.startsWith("#") ? "text-[#FFF3E3]/50" : undefined)}>
-                {l.startsWith("#") ? l : <><span className="select-none text-[#FFF3E3]/40">$ </span>{l}</>}
-              </span>
+    <section aria-label="Works with" className={cn(wrap, "py-12")}>
+      <ul className="flex flex-wrap items-center justify-between gap-x-10 gap-y-5">
+        {WORKS_WITH.map((n) => (
+          <li key={n} className="text-[22px] font-semibold tracking-[-0.04em] text-[var(--ds-gray-700)]">
+            {n}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Left: a short note and a feature list. Right: the headline and the real UI. */
+function Showcase({
+  id,
+  note,
+  features,
+  title,
+  children,
+}: {
+  id?: string;
+  note: string;
+  features: string[];
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section id={id} className="scroll-mt-14 py-24 lg:py-32">
+      <div className={cn(wrap, "grid gap-12 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-20")}>
+        <div className="order-2 lg:order-1 lg:self-end lg:pb-2">
+          <p className="max-w-[28ch] text-[18px] leading-7">{note}</p>
+          <p className="mt-10 text-[13px] text-muted-foreground">Features</p>
+          <ul className="mt-3 space-y-1.5 text-[14px]">
+            {features.map((f) => (
+              <li key={f}>{f}</li>
             ))}
-          </pre>
-          <p className="mt-4 text-muted-foreground">Ten steps, every time. More when something breaks.</p>
+          </ul>
         </div>
-
-        <div className="lg:pt-24">
-          <p className={cn(display, "text-[clamp(3.25rem,8vw,6.5rem)] leading-[0.9]")}>
-            <span className="text-brand-text">$</span> git push
-          </p>
-          <p className="mt-8 max-w-[44ch] text-[18px] leading-8">
-            That is the deploy now. A worker builds your repo, your container gets the release, a
-            health check decides if it is real, and you watch every line of it in the dashboard.
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Features() {
-  const row = "grid gap-8 border-t-2 border-foreground py-12 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:gap-14 md:py-16";
-  const title = cn(display, "text-[clamp(1.9rem,3.6vw,3rem)] leading-[1]");
-  return (
-    <section id="features" className="scroll-mt-4 border-t bg-background-subtle py-24 lg:py-36">
-      <div className={wrap}>
-        <h2 className="sr-only">What you get</h2>
-
-        <div className={row}>
-          <div>
-            <h3 className={title}>Logs, while it builds.</h3>
-            <p className="mt-4 max-w-[40ch] text-muted-foreground">
-              Not after. Every line streams to the page as it happens, with your secrets masked.
-            </p>
+        <div className="order-1 lg:order-2">
+          <h2 className={h2}>{title}</h2>
+          <div className="mt-12 rounded-2xl bg-[var(--ds-gray-100)] p-4 sm:p-8 lg:p-12">
+            <div inert aria-hidden="true" className="overflow-hidden rounded-xl bg-background shadow-menu">
+              {children}
+            </div>
           </div>
-          <div className="self-center font-mono text-[13.5px] leading-6">
-            <p><span className="text-muted-foreground">14:02:13</span> Building: pnpm build</p>
-            <p><span className="text-muted-foreground">14:02:27</span> Packed release: 4.1 MB</p>
-            <p><span className="text-muted-foreground">14:02:30</span> Checksum verified</p>
-            <p><span className="text-muted-foreground">14:02:33</span> <span className="text-brand-text">Healthy: HTTP 200 on port 3000</span></p>
-          </div>
-        </div>
-
-        <div className={row}>
-          <div>
-            <h3 className={title}>If it won&apos;t start, it doesn&apos;t ship.</h3>
-            <p className="mt-4 max-w-[40ch] text-muted-foreground">
-              A new release has to answer on its port before it counts. If it stays silent, the
-              old release is put back and the log says why.
-            </p>
-          </div>
-          <div className="self-center font-mono text-[13.5px] leading-6">
-            <p>9d02a7e <span className="text-[var(--status-error)]">no answer on port 3000 after 45s</span></p>
-            <p className="text-muted-foreground">Reverting to the previous release</p>
-            <p>1a5ddab <span className="text-brand-text">serving traffic again</span></p>
-          </div>
-        </div>
-
-        <div className={row}>
-          <div>
-            <h3 className={title}>Roll back in one click.</h3>
-            <p className="mt-4 max-w-[40ch] text-muted-foreground">
-              The last few releases stay on your container. Pick an older one and it is live again
-              in seconds. Try it, these are fake.
-            </p>
-          </div>
-          <div className="self-center">
-            <ReleaseStrip />
-          </div>
-        </div>
-
-        <div className={cn(row, "border-b-2")}>
-          <div>
-            <h3 className={title}>Every branch gets a preview.</h3>
-            <p className="mt-4 max-w-[40ch] text-muted-foreground">
-              Push a branch and it starts on its own port, next to production. Try the change on a
-              real container before it matters.
-            </p>
-          </div>
-          <div className="self-center font-mono text-[13.5px] leading-7">
-            <p>main <span className="text-muted-foreground">production, :3000</span></p>
-            <p>feature/login <span className="text-muted-foreground">preview, :20000</span></p>
-            <p>fix/typo <span className="text-muted-foreground">preview, :20001</span></p>
-          </div>
-        </div>
-
-        <p className="mt-10 max-w-[60ch] text-[17px] leading-7">
-          Runs Node.js, Python, static sites, or anything with a start command, as long as it
-          listens on the <code className="font-mono text-[15px]">PORT</code> environment variable.
-        </p>
-      </div>
-    </section>
-  );
-}
-
-function Setup() {
-  return (
-    <section className="py-24 lg:py-36">
-      <div className={wrap}>
-        <p className={cn(display, "max-w-[22ch] text-[clamp(2.5rem,6.4vw,5.5rem)] leading-[0.95]")}>
-          Sign in with Hack Club. Paste{" "}
-          <span className="underline decoration-brand decoration-[0.09em] underline-offset-[0.1em]">one key</span>{" "}
-          into your Nest dashboard. Pick a repo. That is setup.
-        </p>
-        <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-4">
-          <Link href="/connect" className={inkButton}>
-            Connect your Nest
-            <ArrowRightIcon />
-          </Link>
-          <a
-            href="#key"
-            className="font-medium underline decoration-2 underline-offset-4 outline-offset-4 transition-opacity hover:opacity-70"
-          >
-            About that key
-          </a>
         </div>
       </div>
     </section>
@@ -208,47 +121,66 @@ function Setup() {
 const LEDGER = [
   ["One key, one job", "Each Nest account gets its own ed25519 key, made for Nest Deploy and used for nothing else."],
   ["Sealed at rest", "The private key is encrypted with AES-256-GCM before it reaches the database, and tied to your server so it cannot be moved."],
-  ["We check the door", "The first connection pins Nest's host key. If it changes, we stop before sending anything."],
-  ["Builds stay out", "Your repo is built in a sandbox on our side, so your 2 GB of memory is for your app."],
+  ["Host key pinned", "The first connection records Nest's host key. If it ever changes, we stop before sending anything."],
+  ["Builds stay out", "Your repo is built in a sandbox on our side, so your container's memory is for your app."],
   ["Sign-in is separate", "Hack Club Auth proves who you are. It has no route to your container."],
-  ["Secrets stay quiet", "Environment variables are encrypted, masked in logs, and never sent back to your browser."],
-  ["Leaving is one click", "Delete the key in your Nest dashboard. Access ends that second. Your apps keep running."],
+  ["Secrets masked", "Environment variables are encrypted, masked in logs, and never sent back to your browser."],
+  ["Easy to leave", "Delete the key in your Nest dashboard. Access ends at once and your apps keep running."],
 ];
 
-function Key() {
+function Security() {
   return (
-    <section id="key" className="scroll-mt-4 bg-[#14110F] py-24 text-[#FFF3E3] lg:py-36">
-      <div className={cn(wrap, "grid gap-14 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-20")}>
-        <div>
-          <h2 className={cn(display, "text-[clamp(2.5rem,5.6vw,4.75rem)] leading-[0.92]")}>
-            About that SSH key.
-          </h2>
-          <p className="mt-8 max-w-[44ch] text-[19px] leading-8">
-            SSH into Nest puts you in a root shell inside your own container. So the key we hold
-            can do anything you can do there.
-          </p>
-          <p className="mt-5 max-w-[44ch] text-[17px] leading-7 opacity-70">
-            We say that on the Connect page before you add it. Only connect a container you are
-            happy to deploy to. Here is how we keep it from becoming a problem.
+    <section id="security" className="scroll-mt-14 py-24 lg:py-32">
+      <div className={cn(wrap, "grid gap-12 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-20")}>
+        <div className="order-2 lg:order-1 lg:self-end">
+          <p className="max-w-[30ch] text-[18px] leading-7">
+            SSH into Nest puts you in a root shell inside your own container, so the key we hold
+            can do anything you can do there. We say so before you add it.
           </p>
           <a
             href={REPO_URL}
             target="_blank"
             rel="noreferrer"
-            className="mt-8 inline-block font-medium text-brand underline decoration-2 underline-offset-4 outline-offset-4"
+            className="mt-8 inline-block text-[14px] font-medium underline underline-offset-4"
           >
-            Read the source on GitHub
+            Read the source
           </a>
         </div>
+        <div className="order-1 lg:order-2">
+          <h2 className={h2}>You hold the key, and you can take it back.</h2>
+          <dl className="mt-12 divide-y border-y">
+            {LEDGER.map(([term, text]) => (
+              <div key={term} className="grid gap-1 py-5 sm:grid-cols-[200px_minmax(0,1fr)] sm:gap-10">
+                <dt className="font-medium tracking-[-0.01em]">{term}</dt>
+                <dd className="max-w-[58ch] leading-7 text-muted-foreground">{text}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </div>
+    </section>
+  );
+}
 
-        <dl className="divide-y divide-[#FFF3E3]/20 border-y border-[#FFF3E3]/20">
-          {LEDGER.map(([term, text]) => (
-            <div key={term} className="grid gap-1 py-5 sm:grid-cols-[170px_minmax(0,1fr)] sm:gap-8">
-              <dt className="font-semibold tracking-[-0.02em]">{term}</dt>
-              <dd className="leading-7 opacity-75">{text}</dd>
-            </div>
+const STEPS = [
+  ["Sign in", "Log in with Hack Club. It confirms who you are and nothing more."],
+  ["Add a key", "Paste the key we make into the SSH Keys page of your Nest dashboard, then test the connection."],
+  ["Import a repo", "Pick a repository, set the port your app listens on, and deploy. After that, every push does it."],
+];
+
+function Start() {
+  return (
+    <section className="border-t py-24 lg:py-32">
+      <div className={wrap}>
+        <h2 className={h2}>Three steps, once.</h2>
+        <ol className="mt-14 grid gap-10 md:grid-cols-3">
+          {STEPS.map(([t, d]) => (
+            <li key={t} className="border-t border-foreground pt-5">
+              <h3 className="text-[17px] font-medium tracking-[-0.02em]">{t}</h3>
+              <p className="mt-2 max-w-[34ch] leading-7 text-muted-foreground">{d}</p>
+            </li>
           ))}
-        </dl>
+        </ol>
       </div>
     </section>
   );
@@ -256,25 +188,25 @@ function Key() {
 
 const FAQ = [
   ["Is it free?", "Yes. Nest is free and so is this. Your limits are your container's own: 2 vCPU, 2 GB of memory and 16 GB of disk by default."],
-  ["Is it an official Hack Club thing?", "No. It is an independent project by a Hack Club member. The Nest team does not run it."],
+  ["Is it an official Hack Club product?", "No. It is an independent project by a Hack Club member. The Nest team does not run it."],
   ["Where do builds run?", "On our side, in a sandbox. Only the finished release is uploaded to your Nest, and the source is deleted when the build ends."],
-  ["Can I use my own domain?", "Yes, with one manual step. Nest maps domains to ports on its own dashboard and has no API for it, so we show you exactly what to enter and check your DNS."],
-  ["What if I delete the key?", "Our access ends immediately. Your apps carry on, because they are ordinary services in your container. We just can't update them."],
-  ["What can I deploy?", "Node.js, Python, static sites, or anything with a start command. It has to listen on the PORT environment variable and on 0.0.0.0."],
+  ["Can I use my own domain?", "Yes, with one manual step. Nest maps domains to ports on its own dashboard and has no API for it, so we show you what to enter and check your DNS."],
+  ["What happens if I delete the key?", "Our access ends at once. Your apps carry on, because they are ordinary services in your container. We just can't update them."],
+  ["What can I deploy?", "Node.js, Python, static sites, or anything with a start command that listens on the PORT environment variable."],
 ];
 
 function Faq() {
   return (
-    <section id="faq" className="scroll-mt-4 py-24 lg:py-32">
-      <div className={wrap}>
-        <h2 className={cn(display, "text-[clamp(2.25rem,5vw,4rem)] leading-[0.95]")}>
-          Things people ask.
+    <section id="faq" className="scroll-mt-14 border-t py-24 lg:py-32">
+      <div className={cn(wrap, "grid gap-12 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-20")}>
+        <h2 className="text-[clamp(1.75rem,2.6vw,2.25rem)] leading-[1.1] font-[450] tracking-[-0.04em]">
+          Questions
         </h2>
-        <dl className="mt-12 grid gap-x-16 gap-y-10 md:grid-cols-2">
+        <dl className="grid gap-x-14 gap-y-10 md:grid-cols-2">
           {FAQ.map(([q, a]) => (
             <div key={q}>
-              <dt className="text-lg font-semibold tracking-[-0.02em]">{q}</dt>
-              <dd className="mt-2 max-w-[52ch] leading-7 text-muted-foreground">{a}</dd>
+              <dt className="font-medium tracking-[-0.01em]">{q}</dt>
+              <dd className="mt-2 max-w-[48ch] leading-7 text-muted-foreground">{a}</dd>
             </div>
           ))}
         </dl>
@@ -283,19 +215,30 @@ function Faq() {
   );
 }
 
-function Closer() {
+function Cta() {
   return (
-    <section className="relative isolate overflow-hidden bg-brand text-brand-foreground">
-      <PixelField cell={20} tone="brand" className="[mask-image:linear-gradient(to_top,black_60%,transparent)]" />
-      <div className={cn(wrap, "relative py-28 lg:py-40")}>
-        <h2 className={cn(display, "max-w-[11ch] text-[clamp(3.25rem,9vw,7.5rem)] leading-[0.88]")}>
-          Your Nest is waiting.
+    <section className="relative isolate overflow-hidden border-t">
+      <PixelField
+        tone="mono"
+        cell={16}
+        className="[mask-image:radial-gradient(ellipse_60%_90%_at_50%_100%,black,transparent)]"
+      />
+      <div className={cn(wrap, "relative py-28 text-center lg:py-36")}>
+        <h2 className="mx-auto max-w-[14ch] text-[clamp(2.5rem,5vw,4rem)] leading-[1] font-[450] tracking-[-0.045em]">
+          Ready to deploy?
         </h2>
-        <div className="mt-10">
-          <Link href="/projects" className={inkButton}>
-            Open the dashboard
-            <ArrowRightIcon />
+        <div className="mt-9 flex flex-wrap justify-center gap-3">
+          <Link href="/projects" className={cn(pill, "bg-foreground text-background")}>
+            Start deploying
           </Link>
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className={cn(pill, "shadow-border-base bg-background hover:bg-[var(--ds-gray-100)]")}
+          >
+            View the source
+          </a>
         </div>
       </div>
     </section>
@@ -306,13 +249,33 @@ export default function HomePage() {
   return (
     <>
       <Hero />
-      <PushTicker />
-      <Replaces />
-      <Features />
-      <Setup />
-      <Key />
+      <WorksWith />
+
+      <Showcase
+        id="product"
+        title="Every push becomes a release."
+        note="Push to main and it is live. Push any other branch and it gets a preview on its own port."
+        features={["Build sandbox", "Release switching", "Branch previews", "Streaming logs"]}
+      >
+        <div className="p-4 sm:p-6">
+          <DeploymentsView deployments={SAMPLE_DEPLOYMENTS} showProject={false} />
+        </div>
+      </Showcase>
+
+      <Showcase
+        title="If it won't start, it won't ship."
+        note="A new release has to answer on its port before it counts. If it stays silent, the old one is put back."
+        features={["Health checks", "Automatic revert", "Instant rollback", "Kept releases"]}
+      >
+        <div className="p-4 sm:p-6">
+          <BuildLogs deploymentId="sample" initialLines={SAMPLE_LOG} rawState="error" duration="48s" />
+        </div>
+      </Showcase>
+
+      <Security />
+      <Start />
       <Faq />
-      <Closer />
+      <Cta />
     </>
   );
 }
