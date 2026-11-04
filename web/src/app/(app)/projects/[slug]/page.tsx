@@ -11,6 +11,7 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import { DeployButton } from "@/components/deploy-button";
 import { RollbackButton } from "@/components/rollback-button";
+import { ServiceCard } from "@/components/service-status";
 import { StatusDot } from "@/components/status-dot";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { buttonVariants } from "@/components/ui/button";
@@ -244,6 +245,8 @@ async function ProjectContent({ params }: Props) {
           </Link>
         </div>
       </section>
+
+      {live ? <ServiceCard projectId={project.id} /> : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         <section aria-labelledby="domains-heading" className="rounded-lg bg-card p-4 shadow-border-small">

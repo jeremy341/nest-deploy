@@ -5,6 +5,18 @@ pidfile="$state/$unit.pid"
 alive() { [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; }
 case "$cmd" in
   daemon-reload|enable|disable) exit 0 ;;
+  show)
+    echo "LoadState=$([ -f "$unitfile" ] && echo loaded || echo not-found)"
+    if alive; then
+      pid=$(cat "$pidfile")
+      echo "ActiveState=active"; echo "SubState=running"; echo "MainPID=$pid"; echo "NRestarts=0"
+      echo "MemoryCurrent=$(awk '/VmRSS/{print $2*1024}' /proc/$pid/status 2>/dev/null || echo 0)"
+      echo "ActiveEnterTimestampMonotonic=$(awk '{print $22*10000}' /proc/$pid/stat 2>/dev/null || echo 0)"
+    else
+      echo "ActiveState=$([ -f "$unitfile" ] && echo failed || echo inactive)"; echo "SubState=dead"; echo "MainPID=0"
+      echo "MemoryCurrent=18446744073709551615"
+    fi
+    exit 0 ;;
   is-system-running) echo running; exit 0 ;;
   is-active) if alive; then echo active; else echo failed; fi; exit 0 ;;
   stop) alive && kill "$(cat "$pidfile")" 2>/dev/null; rm -f "$pidfile"; exit 0 ;;

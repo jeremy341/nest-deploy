@@ -70,6 +70,10 @@ Vercel's Geist docs name a component package (`@vercel/geistcn`), but it is not 
 | `src/app/api` | REST routes |
 | `worker/`, `scripts/` | Standalone worker, setup, fake Nest |
 
+## Monitoring
+
+- **Service card.** On a project's overview: whether the production service is running or crashed, how long it has been up, its memory, how many times systemd restarted it, and one real request to the health path with its response time. Read over SSH when the page opens, every 30 seconds while the tab is visible, and on demand. Nothing is stored, so there is no history yet.
+
 ## Automation
 
 - **Deploy hooks.** A secret URL per project that starts a deployment on POST, for CI and scripts. Set up under a project's Settings.
@@ -78,7 +82,7 @@ Vercel's Geist docs name a component package (`@vercel/geistcn`), but it is not 
 ## Not done yet
 
 - Project screenshots on the overview. It shows live deployment details instead.
-- Traffic analytics and monitoring charts: there is no data source for them yet.
+- Traffic analytics and history charts: the service card shows the present only, and nothing records samples over time yet.
 - Team access, and building from hosts other than GitHub.
 - Domain mapping inside Nest is manual, because Nest has no API for it. Nest Deploy records the intent, shows exact steps, and checks DNS.
 - Not yet run against a real Nest container or with Docker builds; see the end of [docs/backend-setup.md](../docs/backend-setup.md).

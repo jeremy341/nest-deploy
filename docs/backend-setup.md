@@ -123,6 +123,7 @@ All routes except auth and the webhook need a signed-in session. Errors are `{ "
 | `PUT /api/projects/:id/notify` `{ url, on }`, `DELETE`, `POST .../notify/test` | Set, clear or test the Discord or Slack notification |
 | `GET /api/projects/:id/env`, `POST`, `DELETE /api/projects/:id/env/:envId` | Environment variables (names only are returned) |
 | `GET /api/projects/:id/runtime-logs?lines=` | Service output from journald |
+| `GET /api/projects/:id/status` | Live state of the production service: running or crashed, uptime, memory, restarts, and one real request to the health path |
 | `GET /api/deployments?project=` | Deployments |
 | `GET /api/deployments/:id`, `/logs?after=`, `/stream` | One deployment, its log, a live server-sent event stream |
 | `POST /api/deployments/:id/redeploy`, `/rollback`, `/cancel` | Actions |

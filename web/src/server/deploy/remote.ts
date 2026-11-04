@@ -204,3 +204,24 @@ export function removeProject(args: {
 export function runtimeLogs(unit: string, lines: number) {
   return journalTail(unit, Math.max(1, Math.min(lines, 1000)));
 }
+
+/**
+ * Print the state of a service as ND_KEY=value lines: what systemd says about
+ * it, the machine's uptime, and one real request to the app's health path.
+ * Nothing here changes anything, and every step tolerates failure so a stopped
+ * or missing service still produces a readable answer.
+ */
+export function serviceStatus(args: { unit: string; port: number; path: string }) {
+  const path = args.path.startsWith("/") ? args.path : `/${args.path}`;
+  return (
+    `unit=${shellQuote(args.unit)}\nport=${Number(args.port)}\npath=${shellQuote(path)}\n` +
+    `echo "ND_ACTIVE=$(systemctl is-active "$unit" 2>/dev/null || true)"\n` +
+    `systemctl show "$unit" -p LoadState -p ActiveState -p SubState -p MainPID -p NRestarts ` +
+    `-p MemoryCurrent -p ActiveEnterTimestampMonotonic 2>/dev/null | sed 's/^/ND_/' || true\n` +
+    `echo "ND_UPTIME=$(cut -d' ' -f1 /proc/uptime 2>/dev/null || true)"\n` +
+    `if command -v curl >/dev/null 2>&1; then\n` +
+    `  echo "ND_HTTP=$(curl -s -o /dev/null -w '%{http_code} %{time_total}' --max-time 3 "http://127.0.0.1:$port$path" || true)"\n` +
+    `fi\n` +
+    `true\n`
+  );
+}
