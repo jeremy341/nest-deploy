@@ -68,12 +68,14 @@ Create an app at <https://github.com/settings/apps/new>:
 - **Setup URL:** `<APP_URL>/api/github/callback`, with "Redirect on update" on.
 - **Request user authorization (OAuth) during installation:** on. This is how Nest Deploy learns which installations belong to which user.
 - **Webhook URL:** `<APP_URL>/api/webhooks/github`, with a random secret saved as `GITHUB_WEBHOOK_SECRET`.
-- **Repository permissions:** Contents: read-only. Metadata: read-only.
-- **Subscribe to events:** Push. (Installation events arrive without a subscription.)
+- **Repository permissions:** Contents: read-only. Metadata: read-only. Pull requests: read and write (only needed for the preview comment; without it, previews still build and the comment is skipped).
+- **Subscribe to events:** Push and Pull request. (Installation events arrive without a subscription.)
 
 Generate a private key and put the PEM in `GITHUB_APP_PRIVATE_KEY`. Copy the App ID, slug, client id and client secret into the matching variables.
 
 A pushed branch that matches a project's production branch deploys to production. Any other branch builds a preview on its own port; only the newest two previews are kept.
+
+A pull request from the same repository links to its preview and gets one comment from the App, updated as the build finishes. Closing the pull request cancels a build in progress and removes its previews from the server. Pull requests from forks are never built, since that would run a stranger's code with the project's environment variables. Existing installations must accept the new permission and the App must be set to subscribe to Pull request events.
 
 ## What runs where
 
