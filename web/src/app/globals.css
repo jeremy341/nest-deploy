@@ -14,7 +14,13 @@
   marked "est.". Everything shadcn/ui uses (--background, --muted, ...) is
   mapped onto these tokens further down.
 
-  Shape: controls 6px, cards 8px, menus 8px, badges and avatars pill/round.
+  Shape: controls 6px, cards 8px, menus 8px, dialogs 12px, badges and avatars
+  pill/round. Marketing and docs frames are square.
+
+  Motion: see docs/design/ui-spec.md section 3. Durations and easings are
+  tokens (--dur-*, --ease-*), every animation is one of the .motion-* classes,
+  .pressable, .pixel-loader or .skeleton-sweep, and all of them collapse under
+  prefers-reduced-motion (the block near the end of this file).
 */
 
 @theme inline {
@@ -39,6 +45,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -50,6 +57,8 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-soft: var(--brand-soft);
   --color-brand-text: var(--brand-text);
+  /* Body copy in long-form reading: utility text-reading. */
+  --color-reading: var(--prose);
 
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -59,13 +68,117 @@
   --radius-3xl: 20px;
   --radius-4xl: 9999px;
 
-  --ease-swift: cubic-bezier(0.175, 0.885, 0.32, 1.1);
+  /* Easings. snappy is the default for everything, move is for on-screen
+     movement, sheet is for panels and toasts. None of them overshoot. */
+  --ease-swift: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-snappy: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-move: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Type scale. Names avoid colour utilities (there is a --color-card, so
+     never text-card for a size). Responsive variants are applied by the
+     consumer with max-sm: overrides (docs-h1 44/48, docs-h2 26/32). */
+  --text-title-1: 1.75rem;
+  --text-title-1--line-height: 2.25rem;
+  --text-title-1--letter-spacing: -0.025em;
+  --text-title-1--font-weight: 600;
+
+  --text-title-2: 1.25rem;
+  --text-title-2--line-height: 1.75rem;
+  --text-title-2--letter-spacing: -0.02em;
+  --text-title-2--font-weight: 600;
+
+  --text-title-3: 0.875rem;
+  --text-title-3--line-height: 1.25rem;
+  --text-title-3--letter-spacing: -0.01em;
+  --text-title-3--font-weight: 500;
+
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.25rem;
+  --text-body--letter-spacing: 0;
+  --text-body--font-weight: 400;
+
+  --text-body-lg: 1rem;
+  --text-body-lg--line-height: 1.5rem;
+  --text-body-lg--letter-spacing: -0.005em;
+  --text-body-lg--font-weight: 400;
+
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.125rem;
+  --text-label--letter-spacing: 0;
+  --text-label--font-weight: 400;
+
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-caption--letter-spacing: 0;
+  --text-caption--font-weight: 500;
+
+  --text-stat: 2rem;
+  --text-stat--line-height: 2.5rem;
+  --text-stat--letter-spacing: -0.03em;
+  --text-stat--font-weight: 600;
+
+  --text-docs-h1: 4rem;
+  --text-docs-h1--line-height: 4rem;
+  --text-docs-h1--letter-spacing: 0;
+  --text-docs-h1--font-weight: 500;
+
+  --text-docs-lead: 1.125rem;
+  --text-docs-lead--line-height: 1.75rem;
+  --text-docs-lead--letter-spacing: -0.005em;
+  --text-docs-lead--font-weight: 400;
+
+  --text-docs-h2: 1.875rem;
+  --text-docs-h2--line-height: 2.25rem;
+  --text-docs-h2--letter-spacing: 0;
+  --text-docs-h2--font-weight: 500;
+
+  --text-docs-h3: 1.125rem;
+  --text-docs-h3--line-height: 1.75rem;
+  --text-docs-h3--letter-spacing: -0.015em;
+  --text-docs-h3--font-weight: 600;
+
+  --text-prose: 1rem;
+  --text-prose--line-height: 1.75rem;
+  --text-prose--letter-spacing: 0;
+  --text-prose--font-weight: 400;
+
+  --text-docs-small: 0.875rem;
+  --text-docs-small--line-height: 1.5rem;
+  --text-docs-small--letter-spacing: 0;
+  --text-docs-small--font-weight: 400;
+
+  --text-code: 0.8125rem;
+  --text-code--line-height: 1.375rem;
+  --text-code--letter-spacing: 0;
+  --text-code--font-weight: 400;
 }
 
 :root {
   --sidebar-width: 256px;
   --topbar-height: 56px;
   --page-width: 1400px;
+
+  /* Motion. Use as duration-(--dur-fast) ease-snappy in Tailwind. */
+  --ease-snappy: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-move: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-press: 100ms; /* active scale in */
+  --dur-fast: 150ms; /* hover colour, tooltip, menu open, dialog exit */
+  --dur-base: 200ms; /* toggles, caret rotation, docs marker, panel open */
+  --dur-enter: 220ms; /* route content entrance */
+  --dur-slow: 280ms; /* list stagger item, accordion height, toast enter */
+  --dur-reveal: 600ms; /* marketing scroll reveal only */
+  --stagger-step: 35ms; /* capped at 8 steps = 280ms */
+
+  /* Layers. Use these numbers; do not invent new z-index values. */
+  --z-topbar: 30; /* dashboard top bar */
+  --z-header: 50; /* marketing header, docs sticky bar uses 40 */
+  --z-popover: 50; /* menus, tooltips (Base UI positioners) */
+  --z-dock: 60; /* phone dock */
+  --z-overlay: 300; /* find palette, dialogs */
+  --z-toast: 350;
+  --z-skip: 400; /* skip links */
 
   /* Neutral scale (Geist, light) */
   --ds-background-100: hsl(0 0% 100%);
@@ -110,6 +223,8 @@
   --ds-shadow-border-base: 0 0 0 1px #00000014;
   --ds-shadow-border-small: 0 0 0 1px #00000014, 0px 2px 2px #0000000a,
     0 0 0 1px hsl(0 0% 98%);
+  --ds-shadow-border-hover: 0 0 0 1px #00000029, 0px 2px 2px #0000000a,
+    0 0 0 1px hsl(0 0% 98%);
   --ds-shadow-menu: 0 0 0 1px #00000014, 0px 1px 1px #00000005,
     0px 4px 8px -4px #0000000a, 0px 16px 24px -8px #0000000f,
     0 0 0 1px hsl(0 0% 98%);
@@ -134,10 +249,12 @@
   --secondary-foreground: var(--ds-gray-1000);
   --muted: var(--ds-gray-100);
   --muted-foreground: var(--ds-gray-900);
-  --subtle-foreground: var(--ds-gray-800);
+  /* 5.1:1 on white, 4.9:1 on #fafafa, 4.6:1 on gray-100. */
+  --subtle-foreground: hsl(0 0% 43%);
   --accent: var(--ds-gray-100);
   --accent-foreground: var(--ds-gray-1000);
   --destructive: var(--ds-red-900);
+  --destructive-foreground: #ffffff;
   --border: var(--ds-gray-alpha-400);
   --input: var(--ds-gray-alpha-500);
   --ring: var(--ds-focus-color);
@@ -155,6 +272,31 @@
   --brand-soft: var(--ds-blue-100);
   --brand-text: var(--ds-blue-900);
   --pixel-dot: rgb(0 0 0 / 0.16);
+
+  /* Surfaces and reading */
+  --prose: color-mix(in oklab, var(--foreground) 84%, var(--background));
+  --code-bg: var(--ds-background-200);
+  --skeleton-base: var(--ds-gray-100);
+  --skeleton-highlight: var(--ds-gray-200);
+  --grid-line: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --pixel-lit: var(--foreground);
+
+  /* Tones for Alert, Callout and Toast icons. Text inside a tone is always --foreground. */
+  --tone-note-bg: var(--ds-gray-100);
+  --tone-note-ring: var(--ds-gray-alpha-400);
+  --tone-note-icon: var(--muted-foreground);
+  --tone-info-bg: var(--ds-blue-100);
+  --tone-info-ring: color-mix(in oklab, var(--ds-blue-700) 30%, transparent);
+  --tone-info-icon: var(--brand-text);
+  --tone-success-bg: var(--ds-green-100);
+  --tone-success-ring: color-mix(in oklab, var(--ds-green-900) 30%, transparent);
+  --tone-success-icon: var(--ds-green-900);
+  --tone-warning-bg: var(--ds-amber-100);
+  --tone-warning-ring: color-mix(in oklab, var(--ds-amber-900) 30%, transparent);
+  --tone-warning-icon: var(--ds-amber-900);
+  --tone-error-bg: var(--ds-red-100);
+  --tone-error-ring: color-mix(in oklab, var(--ds-red-900) 30%, transparent);
+  --tone-error-icon: var(--ds-red-900);
 }
 
 .dark {
@@ -199,6 +341,8 @@
   --ds-shadow-border-base: 0 0 0 1px #ffffff25;
   --ds-shadow-border-small: 0 0 0 1px #ffffff25, 0px 1px 2px #00000029,
     0 0 0 1px hsl(0 0% 0%);
+  --ds-shadow-border-hover: 0 0 0 1px #ffffff3d, 0px 1px 2px #00000029,
+    0 0 0 1px hsl(0 0% 0%);
   --ds-shadow-menu: 0 0 0 1px #ffffff25, 0px 1px 1px #00000005,
     0px 4px 8px -4px #0000000a, 0px 16px 24px -8px #0000000f,
     0 0 0 1px hsl(0 0% 0%);
@@ -208,7 +352,10 @@
   --ds-shadow-tooltip: 0 0 0 1px #ffffff25, 0px 1px 1px #00000005,
     0px 4px 8px #0000000a, 0 0 0 1px hsl(0 0% 0%);
 
+  /* 5.7:1 on #0a0a0a, 5.0:1 on gray-100. */
+  --subtle-foreground: hsl(0 0% 54%);
   --destructive: var(--ds-red-900);
+  --destructive-foreground: hsl(0 0% 4%);
   --status-ready: var(--ds-teal-600);
 
   --brand: var(--ds-blue-700);
@@ -216,6 +363,8 @@
   --brand-soft: var(--ds-blue-100);
   --brand-text: var(--ds-blue-900);
   --pixel-dot: rgb(255 255 255 / 0.14);
+
+  --skeleton-highlight: var(--ds-gray-300);
 }
 
 /* Pixel display face, loaded by the homepage layout only. */
@@ -231,12 +380,16 @@
 /* Hairline grid; set background-size to the cell size. */
 @utility page-grid {
   background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--foreground) 12%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 12%, transparent) 1px, transparent 1px);
+    linear-gradient(to right, color-mix(in srgb, var(--foreground) 8%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 8%, transparent) 1px, transparent 1px);
 }
 
 @utility shadow-border {
   box-shadow: var(--ds-shadow-border);
+}
+
+@utility shadow-border-base {
+  box-shadow: var(--ds-shadow-border-base);
 }
 
 @utility shadow-border-small {
@@ -262,13 +415,13 @@
 
   /* Browser surfaces that would otherwise ship with defaults. */
   ::selection {
-    background: var(--foreground);
-    color: var(--background);
+    background: color-mix(in oklab, var(--brand) 30%, transparent);
+    color: inherit;
   }
 
   html {
     scrollbar-width: thin;
-    scrollbar-color: var(--ds-gray-400) transparent;
+    scrollbar-color: var(--ds-gray-500) transparent;
   }
 
   html {
@@ -287,15 +440,11 @@
   h2,
   h3 {
     letter-spacing: -0.02em;
+    text-wrap: balance;
   }
 
-  ::selection {
-    background: color-mix(in oklab, var(--brand) 35%, transparent);
-  }
-
-  html {
-    scrollbar-color: var(--ds-gray-500) transparent;
-    scrollbar-width: thin;
+  p {
+    text-wrap: pretty;
   }
 
   input,
@@ -306,7 +455,17 @@
 
   input[type="checkbox"],
   input[type="radio"] {
+    width: 16px;
+    height: 16px;
     accent-color: var(--brand);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary,
+  select,
+  label[for] {
+    cursor: pointer;
   }
 
   :focus-visible {
@@ -324,71 +483,473 @@
   .hairline-y > * + * {
     border-top: 1px solid var(--border);
   }
-
-  /* Vercel-style skeleton: a soft sweep over a gray block. */
-  .skeleton-sweep {
-    background-color: var(--ds-gray-100);
-    background-image: linear-gradient(
-      90deg,
-      transparent 0%,
-      var(--ds-gray-200) 50%,
-      transparent 100%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-sweep 1.6s linear infinite;
-  }
-}
-
-@keyframes skeleton-sweep {
-  from {
-    background-position: -200% 0;
-  }
-  to {
-    background-position: 200% 0;
-  }
-}
-
-/* Marketing motion: a ticker that walks through one deploy, line by line. */
-@keyframes tick-line {
-  0% {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  4% {
-    opacity: 1;
-    transform: none;
-  }
-  17% {
-    opacity: 1;
-    transform: none;
-  }
-  21%,
-  100% {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
 }
 
 @utility ease-out-strong {
   transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .tick-line {
-    animation: none !important;
-    opacity: 0 !important;
+/* ------------------------------------------------------------------ */
+/* Motion keyframes. Prefixed nd- because tw-animate-css owns "enter"  */
+/* and "exit" (they drive animate-in / animate-out on menus, dialogs). */
+/* ------------------------------------------------------------------ */
+
+@keyframes nd-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
   }
-  .tick-line:last-child {
-    opacity: 1 !important;
+}
+@keyframes nd-enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes nd-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes nd-swap-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+    filter: blur(2px);
+  }
+}
+@keyframes nd-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes nd-pixel-blink {
+  0% {
+    opacity: 1;
+  }
+  25%,
+  100% {
+    opacity: 0.25;
+  }
+}
+@keyframes skeleton-sweep {
+  from {
+    background-position: -100vw 0;
+  }
+  to {
+    background-position: 100vw 0;
+  }
+}
+@keyframes nd-hairline-in {
+  from {
+    box-shadow: 0 1px 0 transparent;
+  }
+  to {
+    box-shadow: 0 1px 0 var(--border);
   }
 }
 
+/* M1. Route enter: the content root of a route arrives with a 4px rise. */
+@utility motion-enter {
+  animation: nd-enter var(--dur-enter) var(--ease-snappy) backwards;
+  animation-delay: var(--enter-delay, 0ms);
+}
+
+/* M2. Fade: neutral appearance without movement. */
+@utility motion-fade {
+  animation: nd-fade-in var(--dur-base) var(--ease-snappy) backwards;
+}
+
+/* M3. Stagger: children of the element rise in sequence on first view.
+   <Stagger> sets data-settled after 700ms so later children never animate. */
+@utility motion-stagger {
+  &:not([data-settled]) > * {
+    animation: nd-enter-up var(--dur-slow) var(--ease-snappy) backwards;
+    animation-delay: calc(var(--i, 8) * var(--stagger-step));
+  }
+  &:not([data-settled]) > :nth-child(1) {
+    --i: 0;
+  }
+  &:not([data-settled]) > :nth-child(2) {
+    --i: 1;
+  }
+  &:not([data-settled]) > :nth-child(3) {
+    --i: 2;
+  }
+  &:not([data-settled]) > :nth-child(4) {
+    --i: 3;
+  }
+  &:not([data-settled]) > :nth-child(5) {
+    --i: 4;
+  }
+  &:not([data-settled]) > :nth-child(6) {
+    --i: 5;
+  }
+  &:not([data-settled]) > :nth-child(7) {
+    --i: 6;
+  }
+  &:not([data-settled]) > :nth-child(8) {
+    --i: 7;
+  }
+}
+
+/* M5. Swap: a value that just changed settles in. <Swap> applies it. */
+@utility motion-swap {
+  animation: nd-swap-in 180ms var(--ease-snappy);
+}
+
+/* M15. Grow: bars rise from their baseline on first mount. */
+@utility motion-grow-y {
+  transform-origin: bottom;
+  animation: nd-grow-y 400ms var(--ease-snappy) backwards;
+  animation-delay: var(--grow-delay, 0ms);
+}
+
+/* M4. Reveal on scroll. The default state is visible; <Reveal> sets
+   data-reveal="hidden" only for blocks that start below the fold. */
+@layer components {
+  [data-reveal] {
+    transition:
+      opacity var(--dur-reveal) var(--ease-snappy),
+      transform var(--dur-reveal) var(--ease-snappy);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+  [data-reveal="hidden"] {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  [data-reveal-variant="light"][data-reveal] {
+    transition-duration: 120ms;
+  }
+  [data-reveal-variant="light"][data-reveal="hidden"] {
+    opacity: 0.15;
+    transform: none;
+  }
+}
+
+/* M6. Press: scale in 100ms, back out in 150ms. Includes colour transitions,
+   so do not combine it with a transition-* utility. Built into Button. */
+@utility pressable {
+  transition-property: transform, background-color, color, border-color,
+    box-shadow, opacity;
+  transition-duration: var(--dur-fast);
+  transition-timing-function: var(--ease-snappy);
+  &:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: scale(0.97);
+    transition-duration: var(--dur-press);
+  }
+}
+
+/* M7. Interactive card: the hairline darkens on hover. */
+@utility card-interactive {
+  transition: box-shadow var(--dur-fast) var(--ease-snappy);
+  @media (hover: hover) {
+    &:hover {
+      box-shadow: var(--ds-shadow-border-hover);
+    }
+  }
+}
+
+/* M8. Lit corner: a 6px square switches on at the frame corner (links only). */
+@utility lit-corner {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    top: -1px;
+    left: -1px;
+    width: 6px;
+    height: 6px;
+    background: var(--pixel-lit);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-fast) steps(1, end);
+  }
+  @media (hover: hover) {
+    &:hover::before {
+      opacity: 1;
+    }
+  }
+  &:focus-visible::before {
+    opacity: 1;
+  }
+}
+
+/* M9. Disclosure: native <details> that expands from its summary. Put it on
+   the <details> element or on a wrapper around one. Put .disclosure-caret on
+   the arrow icon inside the summary. */
+@utility disclosure {
+  & summary {
+    display: flex;
+    cursor: pointer;
+    list-style: none;
+  }
+  & summary::-webkit-details-marker {
+    display: none;
+  }
+  & summary:focus-visible {
+    outline-offset: -2px;
+  }
+}
+@utility disclosure-caret {
+  transition: transform var(--dur-base) var(--ease-snappy);
+}
+.disclosure[open] .disclosure-caret,
+.disclosure details[open] .disclosure-caret {
+  transform: rotate(90deg);
+}
+@supports (interpolate-size: allow-keywords) {
+  @media (prefers-reduced-motion: no-preference) {
+    :root {
+      interpolate-size: allow-keywords;
+    }
+    .disclosure::details-content,
+    .disclosure details::details-content {
+      block-size: 0;
+      overflow: hidden;
+      transition:
+        block-size var(--dur-slow) var(--ease-snappy),
+        content-visibility var(--dur-slow) allow-discrete;
+    }
+    .disclosure[open]::details-content,
+    .disclosure details[open]::details-content {
+      block-size: auto;
+    }
+  }
+}
+
+/* M13. PixelLoader: 2x2 squares lighting clockwise. Sizes come from --px and
+   --px-gap, which <PixelLoader> sets. The reduced-motion pattern is at the end. */
+@utility pixel-loader {
+  display: inline-grid;
+  grid-template-columns: repeat(2, var(--px, 4px));
+  gap: var(--px-gap, 2px);
+  flex-shrink: 0;
+  & > * {
+    width: var(--px, 4px);
+    height: var(--px, 4px);
+    background: currentColor;
+    animation: nd-pixel-blink 800ms steps(1, end) infinite;
+  }
+  /* DOM order is TL, TR, BL, BR; clockwise is TL, TR, BR, BL. Negative delays
+     start every square mid-cycle so the sequence is running from the first frame. */
+  & > :nth-child(2) {
+    animation-delay: -600ms;
+  }
+  & > :nth-child(4) {
+    animation-delay: -400ms;
+  }
+  & > :nth-child(3) {
+    animation-delay: -200ms;
+  }
+}
+
+/* M14. Skeleton shimmer: one band of light crosses every block on the page
+   together (fixed attachment). iOS ignores fixed and sweeps per block. */
+@utility skeleton-sweep {
+  background-color: var(--skeleton-base);
+  background-image: linear-gradient(
+    90deg,
+    transparent 35%,
+    var(--skeleton-highlight) 50%,
+    transparent 65%
+  );
+  background-size: 100vw 100%;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  animation: skeleton-sweep 1.6s linear infinite;
+}
+
+/* M16. Header hairline: appears once the page has scrolled 48px. No JS. */
+@utility scroll-hairline {
+  @supports (animation-timeline: scroll()) {
+    animation: nd-hairline-in linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 48px;
+  }
+}
+
+/* Non-motion utilities shared by several surfaces. */
+
+/* Faint hairline grid masked into a soft ellipse. Always on an aria-hidden,
+   absolutely positioned layer, never on the element that holds text. */
+@utility grid-patch {
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 16px 16px;
+  background-position: center;
+  -webkit-mask-image: radial-gradient(ellipse 60% 70% at 50% 40%, #000 15%, transparent 75%);
+  mask-image: radial-gradient(ellipse 60% 70% at 50% 40%, #000 15%, transparent 75%);
+}
+
+/* Log viewers. Lines are .log-line children. */
+@utility log-surface {
+  background: var(--code-bg);
+  font-family: var(--font-geist-mono);
+  font-size: 13px;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+  & .log-line {
+    padding-inline: 16px;
+  }
+  @media (hover: hover) {
+    & .log-line:hover {
+      background: var(--ds-gray-alpha-100);
+    }
+  }
+  & ::selection {
+    background: color-mix(in oklab, var(--brand) 30%, transparent);
+  }
+}
+
+/* Text link: underline at low contrast that firms up on hover and focus. */
+@utility link {
+  text-decoration: underline;
+  text-decoration-color: var(--ds-gray-alpha-500);
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  transition: text-decoration-color var(--dur-fast) var(--ease-snappy);
+  @media (hover: hover) {
+    &:hover {
+      text-decoration-color: currentColor;
+    }
+  }
+  &:focus-visible {
+    text-decoration-color: currentColor;
+  }
+}
+
+/* Rows with a stretched link: the row shows the focus ring, not the link. */
+@utility row-focus {
+  &:has(a:focus-visible, button:focus-visible) {
+    outline: 2px solid var(--ds-focus-color);
+    outline-offset: -2px;
+  }
+  & a:focus-visible {
+    outline: none;
+  }
+}
+
+/* M12. Toast. Stacked toasts use the variables Base UI documents:
+   --toast-index, --toast-height, --toast-frontmost-height, --toast-offset-y,
+   --toast-swipe-movement-x/y, plus data-expanded, data-limited, data-behind
+   and data-swipe-direction. */
+@layer components {
+  .toast-root {
+    --toast-gap: 10px;
+    --toast-scale: calc(1 - var(--toast-index) * 0.05);
+    --toast-shrink: calc(1 - var(--toast-scale));
+    --toast-h: var(--toast-frontmost-height, var(--toast-height));
+    --toast-y: calc(
+      var(--toast-swipe-movement-y) - var(--toast-index) * var(--toast-gap) -
+        var(--toast-shrink) * var(--toast-h)
+    );
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: var(--toast-h);
+    z-index: calc(1000 - var(--toast-index));
+    transform-origin: bottom center;
+    transform: translateX(var(--toast-swipe-movement-x)) translateY(var(--toast-y))
+      scale(var(--toast-scale));
+    transition:
+      transform var(--dur-slow) var(--ease-sheet),
+      opacity var(--dur-slow) var(--ease-sheet);
+    user-select: none;
+  }
+  .toast-root::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    height: calc(var(--toast-gap) + 1px);
+  }
+  .toast-root[data-expanded] {
+    --toast-y: calc(
+      var(--toast-offset-y) * -1 + var(--toast-index) * var(--toast-gap) * -1 +
+        var(--toast-swipe-movement-y)
+    );
+    height: var(--toast-height);
+    transform: translateX(var(--toast-swipe-movement-x)) translateY(var(--toast-y));
+  }
+  .toast-root[data-limited] {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .toast-root[data-starting-style] {
+    opacity: 0;
+    transform: translateY(calc(100% + 16px));
+  }
+  .toast-root[data-ending-style] {
+    opacity: 0;
+    transition-duration: 160ms;
+    transform: translateX(var(--toast-swipe-movement-x))
+      translateY(calc(var(--toast-y) + 8px)) scale(var(--toast-scale));
+  }
+  .toast-root[data-ending-style][data-expanded] {
+    transform: translateX(var(--toast-swipe-movement-x))
+      translateY(calc(var(--toast-y) + 8px));
+  }
+  .toast-root[data-ending-style][data-swipe-direction="down"] {
+    transform: translateX(var(--toast-swipe-movement-x))
+      translateY(calc(var(--toast-swipe-movement-y) + 150%));
+  }
+  .toast-root[data-ending-style][data-swipe-direction="right"] {
+    transform: translateX(calc(var(--toast-swipe-movement-x) + 150%))
+      translateY(var(--toast-y));
+  }
+  .toast-root[data-ending-style][data-swipe-direction="left"] {
+    transform: translateX(calc(var(--toast-swipe-movement-x) - 150%))
+      translateY(var(--toast-y));
+  }
+  .toast-root[data-ending-style][data-swipe-direction="up"] {
+    transform: translateX(var(--toast-swipe-movement-x))
+      translateY(calc(var(--toast-swipe-movement-y) - 150%));
+  }
+  .toast-content {
+    transition: opacity var(--dur-slow) var(--ease-sheet);
+  }
+  .toast-content[data-behind] {
+    opacity: 0;
+  }
+  .toast-content[data-expanded] {
+    opacity: 1;
+  }
+}
+
+/* Reduced motion: every state change still happens, just instantly. Components
+   that run JavaScript animations (Reveal, the docs marker, smooth scrolling)
+   also check matchMedia("(prefers-reduced-motion: reduce)") and skip. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+  .skeleton-sweep {
+    background-image: none !important;
+  }
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  /* Static pattern: top-left and bottom-right lit, the other two dim. */
+  .pixel-loader > * {
+    animation: none !important;
+  }
+  .pixel-loader > :nth-child(2),
+  .pixel-loader > :nth-child(3) {
+    opacity: 0.3;
   }
 }
 

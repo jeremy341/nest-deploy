@@ -17,7 +17,7 @@ export function ThemeButton({ className }: { className?: string }) {
       aria-label="Switch between light and dark mode"
       onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
       className={
-        "inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--ds-gray-100)] hover:text-foreground active:scale-[0.97] " +
+        "pressable inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-[var(--ds-gray-100)] hover:text-foreground max-sm:size-10 " +
         (className ?? "")
       }
     >

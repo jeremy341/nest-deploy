@@ -42,7 +42,8 @@ export function Segmented<T extends string>({
             aria-label={option.iconOnly ? option.label : undefined}
             onClick={() => onChange(option.value)}
             className={cn(
-              "inline-flex h-7 items-center justify-center gap-1.5 rounded-[4px] px-2 text-[13px] font-medium tracking-[-0.02em] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-4",
+              // Inset focus ring: the global ring would be clipped by the frame.
+              "pressable inline-flex h-7 items-center justify-center gap-1.5 rounded-[4px] px-2 text-[13px] font-medium tracking-[-0.02em] focus-visible:outline-offset-[-2px] max-sm:h-10 max-sm:min-w-10 [&_svg]:size-4",
               active
                 ? "bg-[var(--ds-gray-200)] text-foreground"
                 : "text-muted-foreground hover:text-foreground"

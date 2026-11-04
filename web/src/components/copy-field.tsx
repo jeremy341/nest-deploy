@@ -1,19 +1,27 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckIcon, CopyIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { Swap } from "@/components/motion/swap";
 
 export function CopyField({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    []
+  );
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => setCopied(false), 1800);
+      timer.current = setTimeout(() => setCopied(false), 1600);
     } catch {
       setCopied(false);
     }
@@ -27,16 +35,16 @@ export function CopyField({ value, label }: { value: string; label: string }) {
       >
         {value}
       </code>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={copy}
-        aria-live="polite"
-      >
-        {copied ? <CheckIcon /> : <CopyIcon />}
-        {copied ? "Copied" : "Copy"}
+      <Button type="button" variant="outline" size="sm" onClick={copy}>
+        <Swap value={copied} className="inline-flex items-center gap-1">
+          {copied ? <CheckIcon /> : <CopyIcon />}
+          {copied ? "Copied" : "Copy"}
+        </Swap>
       </Button>
+      {/* The announcement lives here, not on the button, so it is read once. */}
+      <span aria-live="polite" className="sr-only">
+        {copied ? "Copied" : ""}
+      </span>
     </div>
   );
 }
