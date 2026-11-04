@@ -36,29 +36,29 @@ function Plus({ className }: { className: string }) {
 
 function Hero() {
   return (
-    <section>
-      <div className={cn(wrap, "pt-24 pb-20 text-center sm:pt-32 sm:pb-24")}>
-        <h1 className="font-pixel mx-auto max-w-[13ch] text-[clamp(3rem,7.6vw,6.5rem)] leading-[0.95] font-medium text-balance">
+    <section className="flex min-h-[calc(100dvh-3.5rem)] flex-col">
+      <div className={cn(wrap, "flex flex-1 flex-col items-center justify-center py-16 text-center")}>
+        <h1 className="font-pixel mx-auto max-w-[12ch] text-[clamp(3.5rem,10.5vw,11rem)] leading-[0.92] font-medium text-balance">
           Deploy to your Nest.
         </h1>
-        <p className="mx-auto mt-7 max-w-[44ch] text-[clamp(1.0625rem,1.5vw,1.25rem)] leading-[1.55] text-muted-foreground text-balance">
+        <p className="mx-auto mt-9 max-w-[46ch] text-[clamp(1.125rem,1.7vw,1.5rem)] leading-[1.5] text-muted-foreground text-balance">
           Push to GitHub and your app builds and goes live on your free Hack Club Nest container,
           with logs, rollbacks and previews.
         </p>
-        <div className="mt-9 flex flex-wrap justify-center gap-3">
-          <Link href="/projects" className={cn(pill, "h-11 bg-foreground px-6 text-background")}>
+        <div className="mt-10 flex flex-wrap justify-center gap-3">
+          <Link href="/projects" className={cn(pill, "h-12 bg-foreground px-7 text-[15px] text-background")}>
             Start deploying
           </Link>
           <a
             href="#product"
-            className={cn(pill, "shadow-border-base h-11 bg-background px-6 hover:bg-[var(--ds-gray-100)]")}
+            className={cn(pill, "shadow-border-base h-12 bg-background px-7 text-[15px] hover:bg-[var(--ds-gray-100)]")}
           >
             How it works
           </a>
         </div>
       </div>
 
-      <div className={wrap}>
+      <div className={cn(wrap, "pb-10")}>
         <div className="relative">
           <Plus className="-top-1.5 -left-1.5 z-10" />
           <Plus className="-top-1.5 -right-1.5 z-10" />
@@ -71,7 +71,7 @@ function Hero() {
             {WORKS_WITH.map((n) => (
               <li
                 key={n}
-                className="font-pixel flex h-24 items-center justify-center bg-background px-4 text-center text-[22px] leading-none font-medium text-[var(--ds-gray-900)]"
+                className="font-pixel flex h-20 items-center justify-center bg-background px-4 text-center text-[22px] leading-none font-medium text-[var(--ds-gray-900)]"
               >
                 {n}
               </li>
