@@ -223,6 +223,9 @@
   font-family: var(--font-pixel), var(--font-geist-mono), monospace;
   letter-spacing: 0;
   font-synthesis: none;
+  /* Pixelify Sans draws "fi" as a glyph that reads as "A". */
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "clig" 0;
 }
 
 @utility shadow-border {
@@ -248,6 +251,17 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+
+  /* Browser surfaces that would otherwise ship with defaults. */
+  ::selection {
+    background: var(--foreground);
+    color: var(--background);
+  }
+
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ds-gray-400) transparent;
   }
 
   html {
