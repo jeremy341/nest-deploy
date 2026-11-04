@@ -27,7 +27,7 @@ export const POST = handle(async (req: NextRequest) => {
     slackId: null,
   });
   const session = await createSession(user.id, req.headers.get("user-agent"));
-  const res = NextResponse.redirect(new URL("/", config().APP_URL), 303);
+  const res = NextResponse.redirect(new URL("/projects", config().APP_URL), 303);
   res.cookies.set(SESSION_COOKIE, session.token, sessionCookieOptions(session.expiresAt));
   return res;
 });

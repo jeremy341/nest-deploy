@@ -93,7 +93,7 @@ export function ProjectsView({
             { value: "list", label: "List view", icon: <ListIcon />, iconOnly: true },
           ]}
         />
-        <Link href="/new" className={cn(buttonVariants(), "h-9 px-3")}>
+        <Link href="/new" className={cn(buttonVariants({ variant: "brand" }), "h-9 px-3")}>
           Add New
           <PlusIcon />
         </Link>

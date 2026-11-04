@@ -1,5 +1,7 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { NestMark } from "@/components/nest-mark";
+import { PixelField } from "@/components/pixel-field";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { config, hackClubConfigured } from "@/server/config";
@@ -25,9 +27,12 @@ async function LoginContent({
   const dev = config().DEV_LOGIN && process.env.NODE_ENV !== "production";
 
   return (
-    <main className="flex min-h-[100dvh] flex-1 items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-[360px]">
-        <NestMark className="mx-auto size-9" />
+    <main className="relative isolate flex min-h-[100dvh] flex-1 items-center justify-center overflow-hidden bg-background px-4 py-12">
+      <PixelField className="[mask-image:radial-gradient(ellipse_at_center,black_20%,transparent_75%)]" />
+      <div className="relative w-full max-w-[360px]">
+        <Link href="/" aria-label="Nest Deploy, home" className="mx-auto block w-fit">
+          <NestMark className="mx-auto size-10" />
+        </Link>
         <h1 className="mt-6 text-center text-2xl font-semibold tracking-[-0.04em]">
           Log in to Nest Deploy
         </h1>
@@ -43,7 +48,7 @@ async function LoginContent({
             href="/api/auth/login"
             aria-disabled={!hackClub}
             className={cn(
-              buttonVariants({ size: "lg" }),
+              buttonVariants({ variant: "brand", size: "lg" }),
               "w-full",
               !hackClub && "pointer-events-none opacity-50"
             )}

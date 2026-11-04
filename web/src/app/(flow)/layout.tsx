@@ -17,7 +17,7 @@ export default function FlowLayout({ children }: { children: React.ReactNode }) 
       <AccountLoader>
         <div className="flex min-h-dvh flex-col">
           <header className="flex h-[var(--topbar-height)] shrink-0 items-center gap-3 border-b px-4 lg:px-6">
-            <Link href="/" aria-label="Nest Deploy home" className="rounded-md p-1">
+            <Link href="/projects" aria-label="Nest Deploy home" className="rounded-md p-1">
               <NestMark className="size-6" />
             </Link>
             <div className="w-56 max-w-[60%]">

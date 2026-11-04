@@ -19,7 +19,7 @@ function EnvPill({ deployment }: { deployment: DeploymentView }) {
       className={cn(
         "inline-flex h-6 items-center gap-1.5 rounded-full px-2 text-[12px] font-medium tracking-[-0.02em]",
         current
-          ? "bg-[var(--ds-blue-700)] text-white"
+          ? "bg-brand text-brand-foreground"
           : "shadow-border-base bg-background"
       )}
     >

@@ -101,7 +101,7 @@ export function BuildLogs({
           {active ? (
             <CircleNotchIcon className="size-5 animate-spin" aria-label="Running" />
           ) : rawState === "ready" ? (
-            <CheckCircleIcon weight="fill" className="size-5 text-[var(--ds-blue-700)]" aria-label="Succeeded" />
+            <CheckCircleIcon weight="fill" className="size-5 text-brand-text" aria-label="Succeeded" />
           ) : (
             <XCircleIcon weight="fill" className="size-5 text-[var(--status-error)]" aria-label="Failed" />
           )}

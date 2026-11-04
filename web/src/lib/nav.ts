@@ -30,10 +30,10 @@ export type NavContext = {
 
 const TEAM_ITEMS: NavItem[] = [
   {
-    href: "/",
+    href: "/projects",
     label: "Projects",
     icon: SquaresFourIcon,
-    active: (p) => p === "/",
+    active: (p) => p === "/projects",
   },
   {
     href: "/deployments",
@@ -62,7 +62,7 @@ const TEAM_ITEMS: NavItem[] = [
 ];
 
 const TEAM_TITLES: Record<string, string> = {
-  "/": "Overview",
+  "/projects": "Overview",
   "/deployments": "Deployments",
   "/logs": "Logs",
   "/domains": "Domains",
@@ -102,7 +102,7 @@ export function navFor(pathname: string): NavContext {
     const name = slug;
 
     let title = "Project Overview";
-    let backHref = "/";
+    let backHref = "/projects";
     if (rest.startsWith("/deployments/")) {
       title = "Deployment";
       backHref = `/projects/${slug}/deployments`;
@@ -113,7 +113,7 @@ export function navFor(pathname: string): NavContext {
       title = "Project Deployments";
       backHref = `/projects/${slug}`;
     } else {
-      backHref = "/";
+      backHref = "/projects";
     }
 
     return {
@@ -127,8 +127,8 @@ export function navFor(pathname: string): NavContext {
 
   const known = TEAM_ITEMS.find((i) => i.active(pathname));
   return {
-    title: TEAM_TITLES[known?.href ?? "/"] ?? "Nest Deploy",
-    backHref: pathname === "/" ? undefined : "/",
+    title: TEAM_TITLES[known?.href ?? "/projects"] ?? "Nest Deploy",
+    backHref: pathname === "/projects" ? undefined : "/projects",
     items: TEAM_ITEMS,
   };
 }

@@ -36,7 +36,7 @@ export function TopBar() {
           </Link>
         ) : (
           <Link
-            href="/"
+            href="/projects"
             aria-label="Nest Deploy home"
             className="-ml-1 rounded-md p-1 lg:hidden"
           >
@@ -58,7 +58,7 @@ export function TopBar() {
             </Link>
           ) : (
             <Link
-              href="/"
+              href="/projects"
               className="flex items-center gap-1 rounded-md px-1 py-1 hover:bg-[var(--ds-gray-100)]"
             >
               All Projects

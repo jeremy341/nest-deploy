@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     const profile = await completeLogin(code, saved.v);
     const user = await upsertUser(profile);
     const session = await createSession(user.id, req.headers.get("user-agent"));
-    const res = NextResponse.redirect(new URL("/", config().APP_URL), 303);
+    const res = NextResponse.redirect(new URL("/projects", config().APP_URL), 303);
     res.cookies.set(SESSION_COOKIE, session.token, sessionCookieOptions(session.expiresAt));
     res.cookies.delete({ name: OAUTH_COOKIE, path: "/api/auth" });
     return res;

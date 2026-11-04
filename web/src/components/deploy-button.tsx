@@ -36,7 +36,7 @@ export function DeployButton({
   }
 
   return (
-    <Button onClick={() => void deploy()} disabled={busy} className="px-3">
+    <Button variant="brand" onClick={() => void deploy()} disabled={busy} className="px-3">
       <RocketLaunchIcon />
       {busy ? "Starting..." : label}
     </Button>

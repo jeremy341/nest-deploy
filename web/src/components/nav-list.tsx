@@ -26,7 +26,7 @@ export function NavList({
       {ctx.project ? (
         <>
           <Link
-            href="/"
+            href="/projects"
             onClick={onNavigate}
             className={cn(
               itemClass,

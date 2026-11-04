@@ -174,7 +174,7 @@ export function DomainsView({
       {instructions ? (
         <section
           aria-labelledby="next-steps"
-          className="rounded-lg border border-[var(--ds-blue-700)]/40 bg-[var(--ds-blue-100)] p-4"
+          className="rounded-lg border border-brand/40 bg-brand-soft p-4"
         >
           <h2 id="next-steps" className="font-medium tracking-[-0.02em]">
             Next: finish setup for {instructions.domain}

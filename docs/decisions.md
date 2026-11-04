@@ -33,3 +33,8 @@ Newest decisions are at the bottom. Each entry says what was decided and why. Wh
 18. **Domains are recorded, not configured.** There is no Nest API for mapping a domain to a port, so Nest Deploy tells the user what to enter and checks DNS.
 19. **Hack Club Auth for identity only, GitHub App for repositories.** The GitHub App's user authorization is used once, to learn which installations belong to a user, and the user token is not stored.
 
+## Brand and homepage (added 2026-11-04)
+
+20. **Ember orange is the one accent.** Chosen because it is warm, reads as hearth and nest, sits close to Hack Club's red without being error red, and stays legible as a fill on both black and white. Black and white remain the base. A pixel mark (a bowl with one ember pixel) and a pixel face used only for the wordmark and step numerals carry the personality.
+21. **The homepage lives at `/`, the dashboard at `/projects`.** The homepage is public; everything else still needs a session.
+

@@ -141,7 +141,7 @@ export function ProjectSettings({
       await api(`/api/projects/${project.id}${removeRemote ? "?remote=1" : ""}`, {
         method: "DELETE",
       });
-      router.push("/");
+      router.push("/projects");
       router.refresh();
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : "Could not delete");
