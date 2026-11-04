@@ -49,14 +49,14 @@ function Hero() {
   return (
     <section className="flex min-h-[calc(100dvh-3.5rem)] flex-col">
       <div className={cn(wrap, "flex flex-1 flex-col items-center justify-center py-16 text-center")}>
-        <h1 className="font-pixel mx-auto max-w-[12ch] text-[clamp(3.5rem,10.5vw,11rem)] leading-[0.92] font-medium text-balance">
+        <h1 className="hero-wipe font-pixel mx-auto max-w-[12ch] text-[clamp(3.5rem,10.5vw,11rem)] leading-[0.92] font-medium text-balance">
           Deploy to your Nest.
         </h1>
-        <p className="mx-auto mt-9 max-w-[46ch] text-[clamp(1.125rem,1.7vw,1.5rem)] leading-[1.5] text-muted-foreground text-balance">
+        <p style={{ "--rise-delay": "0.95s" } as React.CSSProperties} className="hero-rise mx-auto mt-9 max-w-[46ch] text-[clamp(1.125rem,1.7vw,1.5rem)] leading-[1.5] text-muted-foreground text-balance">
           Push to GitHub and your app builds and goes live on your free Hack Club Nest container,
           with logs, rollbacks and previews.
         </p>
-        <div className="mt-10 flex flex-wrap justify-center gap-3">
+        <div style={{ "--rise-delay": "1.1s" } as React.CSSProperties} className="hero-rise mt-10 flex flex-wrap justify-center gap-3">
           <Link href="/projects" className={cn(pill, "h-12 bg-foreground px-7 text-[15px] text-background")}>
             Start deploying
           </Link>

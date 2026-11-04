@@ -99,6 +99,8 @@ browser ──> Next.js app ──> SQLite          (users, servers, projects, l
 - **Root.** SSH into Nest lands in a root shell in the user's own container, so this key is effectively root there. The Connect page says so before the user adds it. Removing the key in the Nest dashboard revokes access.
 - **Sessions.** Random tokens in an httpOnly, SameSite=Lax cookie. Only a hash is stored. Writes also check the `Origin` header.
 - **Webhooks.** Accepted only with a valid HMAC signature over the raw body.
+- **Deploy hooks.** `POST /api/hooks/deploy/:token` starts a deployment for scripts and CI. The token is shown once; only its SHA-256 is stored, so a copy of the database cannot be turned into working URLs. Creating a new one replaces the old one. A call is refused with 409 while a deployment for that project is still queued or running, and an optional `{ "branch" }` body is validated like a branch name. Unknown tokens answer exactly like missing ones.
+- **Notifications.** The project's Discord or Slack webhook URL is sealed at rest and never returned by the API. Because the server posts to it, only `https` URLs on `discord.com`, `discordapp.com` (including `ptb.` and `canary.`) and `hooks.slack.com` with those services' own path shapes are accepted: no ports, credentials or query strings. Redirects are refused and the request times out after 5 seconds, so it cannot be used to reach internal addresses. A failing webhook is logged and never affects the deployment.
 - **Repositories.** Only `https://github.com/...` URLs can be cloned.
 - **Logs.** Environment variable values and tokens are masked before log lines are stored.
 
@@ -117,6 +119,8 @@ All routes except auth and the webhook need a signed-in session. Errors are `{ "
 | `GET /api/projects`, `POST` | List, or create |
 | `GET /api/projects/:id`, `PATCH`, `DELETE ?remote=1&data=1` | Read, update, delete (optionally also from the server) |
 | `POST /api/projects/:id/deploy` | Queue a deployment `{ branch? }` |
+| `POST /api/projects/:id/hook`, `DELETE` | Create (or replace) the deploy hook, which returns its URL once, or revoke it |
+| `PUT /api/projects/:id/notify` `{ url, on }`, `DELETE`, `POST .../notify/test` | Set, clear or test the Discord or Slack notification |
 | `GET /api/projects/:id/env`, `POST`, `DELETE /api/projects/:id/env/:envId` | Environment variables (names only are returned) |
 | `GET /api/projects/:id/runtime-logs?lines=` | Service output from journald |
 | `GET /api/deployments?project=` | Deployments |
@@ -125,6 +129,7 @@ All routes except auth and the webhook need a signed-in session. Errors are `{ "
 | `GET /api/domains`, `POST`, `DELETE /:id`, `POST /:id/verify` | Domain records and DNS check |
 | `GET /api/github/installations`, `/repos?installation=` | GitHub state |
 | `POST /api/webhooks/github` | GitHub webhook |
+| `POST /api/hooks/deploy/:token` | Deploy hook (public, the token is the credential) `{ branch? }` |
 
 ## Tests
 

@@ -2,6 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/server/db";
 import { notFound } from "@/server/http";
 import { listServers, publicServer } from "@/server/servers";
+import { notifySummary } from "@/server/notify";
 import { usageFromProbe } from "@/server/runtime-info";
 import { durationText, timeAgo, uiState, type UiState } from "@/lib/status";
 
@@ -22,6 +23,10 @@ export type ProjectView = {
   port: number;
   healthPath: string;
   autoDeploy: boolean;
+  /** True when a deploy hook exists. The URL is only ever shown when it is created. */
+  hookActive: boolean;
+  hookCreatedAt: string | null;
+  notify: { kind: "discord" | "slack"; on: "all" | "failures" } | null;
   serverId: string;
   nestUsername: string;
   domains: string[];
@@ -124,6 +129,9 @@ export async function projectViews(userId: string): Promise<ProjectView[]> {
       port: p.port,
       healthPath: p.healthPath,
       autoDeploy: p.autoDeploy,
+      hookActive: Boolean(p.hookHash),
+      hookCreatedAt: p.hookCreatedAt ? p.hookCreatedAt.toISOString() : null,
+      notify: notifySummary(p),
       serverId: p.serverId,
       nestUsername: nest,
       domains: domains.filter((x) => x.projectId === p.id).map((x) => x.domain),

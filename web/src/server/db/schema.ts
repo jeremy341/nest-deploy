@@ -109,11 +109,20 @@ export const projects = sqliteTable(
     autoDeploy: integer("auto_deploy", { mode: "boolean" })
       .notNull()
       .default(true),
+    /** SHA-256 of the deploy hook token. The token itself is shown once and never stored. */
+    hookHash: text("hook_hash"),
+    hookCreatedAt: ts("hook_created_at"),
+    /** Sealed Discord or Slack webhook URL that gets a message when a deployment finishes. */
+    notifyUrlEnc: text("notify_url_enc"),
+    notifyOn: text("notify_on", { enum: ["all", "failures"] })
+      .notNull()
+      .default("all"),
     createdAt: ts("created_at").notNull(),
     updatedAt: ts("updated_at").notNull(),
   },
   (t) => [
     uniqueIndex("projects_user_slug_idx").on(t.userId, t.slug),
+    uniqueIndex("projects_hook_idx").on(t.hookHash),
     index("projects_user_idx").on(t.userId),
   ]
 );
@@ -156,7 +165,7 @@ export const deployments = sqliteTable(
     env: text("env", { enum: ["production", "preview"] }).notNull(),
     state: text("state", { enum: DEPLOY_STATES }).notNull().default("queued"),
     source: text("source", {
-      enum: ["manual", "webhook", "redeploy", "rollback"],
+      enum: ["manual", "webhook", "hook", "redeploy", "rollback"],
     }).notNull(),
     branch: text("branch").notNull(),
     commitSha: text("commit_sha"),

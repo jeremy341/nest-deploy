@@ -7,6 +7,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { NEST_GUIDES_URL, REPO_URL } from "@/lib/site";
 
 const GRID_CELL = 30;
+/** The first wave lands behind the headline as the page loads. */
+const INTRO_DROP: [number, number] = [0.5, 0.45];
 
 const pixel = Pixelify_Sans({ variable: "--font-pixel", subsets: ["latin"] });
 
@@ -28,7 +30,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         className="page-grid pointer-events-none absolute inset-0 -z-10"
         style={{ backgroundSize: `${GRID_CELL}px ${GRID_CELL}px` }}
       />
-      <PixelField fixed autoDrops tone="mono" cell={GRID_CELL} />
+      <PixelField fixed autoDrops intro={INTRO_DROP} tone="mono" cell={GRID_CELL} />
       <a
         href="#top"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:shadow-menu"

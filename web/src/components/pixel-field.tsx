@@ -28,6 +28,8 @@ type Props = {
   cell?: number;
   /** Let a drop fall now and then without any input. */
   autoDrops?: boolean;
+  /** Where the first drop lands, as fractions of the width and height. Default: random. */
+  intro?: [number, number];
   /** "mono" lights pixels in the page's text colour instead of the accent. */
   tone?: "default" | "mono";
   /** Cover the viewport behind the page instead of filling the parent. */
@@ -73,6 +75,7 @@ function parseColor(value: string): [number, number, number, number] {
 export function PixelField({
   cell = 18,
   autoDrops = false,
+  intro,
   tone = "default",
   fixed = false,
   className,
@@ -275,11 +278,12 @@ export function PixelField({
       drops = setTimeout(
         () => {
           if (visible && !document.hidden && w > 0 && ripples.length === 0) {
-            addDrop(w * (0.2 + Math.random() * 0.6), h * (0.2 + Math.random() * 0.6));
+            if (first && intro) addDrop(w * intro[0], h * intro[1]);
+            else addDrop(w * (0.2 + Math.random() * 0.6), h * (0.2 + Math.random() * 0.6));
           }
           scheduleDrop();
         },
-        first ? 900 : 7000 + Math.random() * 6000
+        first ? (intro ? 700 : 900) : 7000 + Math.random() * 6000
       );
     }
 
@@ -316,7 +320,7 @@ export function PixelField({
       document.removeEventListener("visibilitychange", wake);
       window.removeEventListener("scroll", wake);
     };
-  }, [cell, autoDrops, tone, fixed]);
+  }, [cell, autoDrops, tone, fixed, intro]);
 
   return (
     <div

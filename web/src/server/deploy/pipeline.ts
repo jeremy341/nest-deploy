@@ -23,6 +23,7 @@ import {
   renderEnvFile,
   resolveStartCommand,
 } from "@/server/deploy/runtime";
+import { notifyDeploymentFinished } from "@/server/notify";
 import { connectToServer, type ServerRow } from "@/server/servers";
 import { shellQuote, type NestSession } from "@/server/ssh/connection";
 import { probeSession, type NestProbe } from "@/server/ssh/probe";
@@ -100,6 +101,10 @@ async function setState(
 ) {
   const db = await getDb();
   await db.update(schema.deployments).set({ state, ...extra }).where(eq(schema.deployments.id, id));
+  if (state === "ready" || state === "error") {
+    // Fire and forget: notifyDeploymentFinished never throws.
+    void notifyDeploymentFinished(id);
+  }
 }
 
 async function stateOf(id: string) {

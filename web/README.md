@@ -70,6 +70,11 @@ Vercel's Geist docs name a component package (`@vercel/geistcn`), but it is not 
 | `src/app/api` | REST routes |
 | `worker/`, `scripts/` | Standalone worker, setup, fake Nest |
 
+## Automation
+
+- **Deploy hooks.** A secret URL per project that starts a deployment on POST, for CI and scripts. Set up under a project's Settings.
+- **Notifications.** A Discord or Slack message when a deployment finishes, for every deployment or failures only.
+
 ## Not done yet
 
 - Project screenshots on the overview. It shows live deployment details instead.
