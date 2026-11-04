@@ -330,60 +330,24 @@
   }
 }
 
-/* Marketing motion: one deploy console that plays itself, plus reveals. */
-@keyframes console-line-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes chip-out {
-  to {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-}
-
-@keyframes chip-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes pulse-dot {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
-}
-
-@keyframes pipe-run {
+/* Marketing motion: a ticker that walks through one deploy, line by line. */
+@keyframes tick-line {
   0% {
-    transform: translateX(0);
     opacity: 0;
+    transform: translateY(10px);
   }
-  8% {
+  4% {
     opacity: 1;
+    transform: none;
   }
-  92% {
+  17% {
     opacity: 1;
+    transform: none;
   }
+  21%,
   100% {
-    transform: translateX(var(--run, 100%));
     opacity: 0;
+    transform: translateY(-10px);
   }
 }
 
@@ -392,17 +356,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .console-line,
-  .console-chip {
+  .tick-line {
     animation: none !important;
+    opacity: 0 !important;
+  }
+  .tick-line:last-child {
     opacity: 1 !important;
-    transform: none !important;
-  }
-  .console-chip[data-chip="building"] {
-    display: none;
-  }
-  .pipe-dot {
-    display: none;
   }
 }
 
