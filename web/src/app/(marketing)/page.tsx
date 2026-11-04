@@ -32,6 +32,19 @@ function Plus({ className }: { className: string }) {
   );
 }
 
+/** An opaque, hairline-framed block with a crosshair on each corner. */
+function Framed({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className="relative">
+      <Plus className="-top-1.5 -left-1.5 z-10" />
+      <Plus className="-top-1.5 -right-1.5 z-10" />
+      <Plus className="-bottom-1.5 -left-1.5 z-10" />
+      <Plus className="-right-1.5 -bottom-1.5 z-10" />
+      <div className={cn("border bg-background", className)}>{children}</div>
+    </div>
+  );
+}
+
 function Hero() {
   return (
     <section className="flex min-h-[calc(100dvh-3.5rem)] flex-col">
@@ -129,6 +142,70 @@ function Showcase({
   );
 }
 
+const RUNTIMES = [
+  ["Node.js", "Reads your lockfile to pick npm, pnpm or yarn, runs your build script, then starts the app with your start command. The default is npm start."],
+  ["Python", "Installs requirements.txt into a virtual environment on your Nest, then runs your start command. The default is python3 app.py."],
+  ["Static site", "Builds if you have a build script, then serves the output folder you pick."],
+  ["Any command", "Skip detection and give the install, build and start commands yourself. The only rule is that the app listens on the PORT it is given."],
+];
+
+function Runtimes() {
+  return (
+    <section id="runtimes" className="scroll-mt-14 py-24 lg:py-32">
+      <div className={cn(wrap, "grid gap-12 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-20")}>
+        <div className="lg:self-end lg:pb-2">
+          <p className="max-w-[28ch] text-[18px] leading-7">
+            No config file to write. Nest Deploy looks at your repo and works out how to build and
+            run it, and you can override any step.
+          </p>
+        </div>
+        <div>
+          <h2 className={h2}>Bring the app you already have.</h2>
+          <div className="mt-12">
+            <Framed>
+              <dl className="divide-y px-6">
+                {RUNTIMES.map(([term, text]) => (
+                  <div key={term} className="grid gap-2 py-6 md:grid-cols-[200px_minmax(0,1fr)] md:gap-10">
+                    <dt className="font-pixel text-[21px] leading-6 font-medium">{term}</dt>
+                    <dd className="max-w-[62ch] leading-7 text-muted-foreground">{text}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Framed>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const INCLUDED = [
+  ["Deploys on push", "Install the GitHub app on a repo and every push to your production branch builds and ships. Public or private, whatever you grant it."],
+  ["Rollbacks", "Production keeps your last five releases on disk. Switching back is a symlink and a restart, so it takes seconds."],
+  ["Branch previews", "Any other branch builds on its own port, from 20000 up. The newest two previews stay; older ones are cleaned up."],
+  ["Environment variables", "Set them once per project. They are encrypted, masked in logs, and never shown again in full."],
+  ["Live logs", "Build output streams to the page as it happens. Runtime logs come from your app's systemd service."],
+  ["Custom domains", "Nest maps domains by hand, so we tell you exactly what to enter and check your DNS until it matches."],
+];
+
+function Included() {
+  return (
+    <section id="included" className="scroll-mt-14 py-24 lg:py-32">
+      <div className={wrap}>
+        <h2 className={h2}>Everything else you would expect.</h2>
+        <dl className="mt-14 grid gap-x-16 gap-y-12 md:grid-cols-2 lg:grid-cols-3">
+          {INCLUDED.map(([term, text]) => (
+            <div key={term}>
+              <dt className="font-pixel text-[21px] leading-6 font-medium">{term}</dt>
+              <dd className="mt-3 max-w-[42ch] leading-7 text-muted-foreground">{text}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </section>
+  );
+}
+
 const STEPS = [
   ["Sign in", "Log in with Hack Club. It confirms who you are and nothing more."],
   ["Add a key", "Paste the key we make into the SSH Keys page of your Nest dashboard, then test the connection."],
@@ -137,7 +214,7 @@ const STEPS = [
 
 function Start() {
   return (
-    <section id="start" className="scroll-mt-14 border-y py-24 lg:py-32">
+    <section id="start" className="scroll-mt-14 py-24 lg:py-32">
       <div className={wrap}>
         <h2 className={h2}>Set up in three steps.</h2>
         <ol className="mt-14 grid gap-10 md:grid-cols-3 md:gap-8">
@@ -184,14 +261,18 @@ function Security() {
             </a>
           </div>
         </div>
-        <dl className="mt-16 divide-y border-y">
-          {LEDGER.map(([term, text]) => (
-            <div key={term} className="grid gap-2 py-6 md:grid-cols-[280px_minmax(0,1fr)] md:gap-10">
-              <dt className="font-pixel text-[21px] leading-6 font-medium">{term}</dt>
-              <dd className="max-w-[60ch] leading-7 text-muted-foreground">{text}</dd>
-            </div>
-          ))}
-        </dl>
+        <div className="mt-16">
+          <Framed>
+            <dl className="divide-y px-6">
+              {LEDGER.map(([term, text]) => (
+                <div key={term} className="grid gap-2 py-6 md:grid-cols-[280px_minmax(0,1fr)] md:gap-10">
+                  <dt className="font-pixel text-[21px] leading-6 font-medium">{term}</dt>
+                  <dd className="max-w-[60ch] leading-7 text-muted-foreground">{text}</dd>
+                </div>
+              ))}
+            </dl>
+          </Framed>
+        </div>
       </div>
     </section>
   );
@@ -203,12 +284,15 @@ const FAQ = [
   ["Where do builds run?", "On our side, in a sandbox. Only the finished release is uploaded to your Nest, and the source is deleted when the build ends."],
   ["Can I use my own domain?", "Yes, with one manual step. Nest maps domains to ports on its own dashboard and has no API for it, so we show you what to enter and check your DNS."],
   ["What happens if I delete the key?", "Our access ends at once. Your apps carry on, because they are ordinary services in your container. We just can't update them."],
+  ["Does it work with private repositories?", "Yes. Nest Deploy reads whatever repositories you give the GitHub app access to, and only those."],
+  ["How do rollbacks work?", "Each release lives in its own folder and a current link points at the live one. Rolling back moves the link and restarts the service. Production keeps the last five releases."],
+  ["Does it run databases?", "No. It deploys your app. If you need a database, run one in your Nest container yourself and point the app at it with an environment variable."],
   ["What can I deploy?", "Node.js, Python, static sites, or anything with a start command that listens on the PORT environment variable."],
 ];
 
 function Faq() {
   return (
-    <section id="faq" className="scroll-mt-14 border-y py-24 lg:py-32">
+    <section id="faq" className="scroll-mt-14 py-24 lg:py-32">
       <div className={cn(wrap, "grid gap-12 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-20")}>
         <h2 className="font-pixel text-[clamp(2rem,3vw,2.75rem)] leading-none font-medium">Questions</h2>
         <dl className="grid gap-x-14 gap-y-10 md:grid-cols-2">
@@ -266,7 +350,11 @@ export default function HomePage() {
         </div>
       </Showcase>
 
+      <Runtimes />
+
       <Start />
+
+      <Included />
 
       <Showcase
         flip

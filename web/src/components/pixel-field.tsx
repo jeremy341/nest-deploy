@@ -89,8 +89,8 @@ export function PixelField({
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // The resting grid is hairlines between the cells. A lit pixel is a box that
     // swells from the middle of its cell until it fills it, inside the lines.
-    const REST = Math.round(cell * 0.5);
-    const max = cell - 2;
+    const REST = Math.round(cell * 0.4);
+    const max = cell - 6; // leaves a clear gap to the hairlines on every side
     const litCap = tone === "mono" ? 0.5 : 0.92;
 
     let w = 0;

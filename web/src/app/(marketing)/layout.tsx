@@ -38,9 +38,9 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
 
       <header className="sticky top-0 z-50 bg-background-subtle/85 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-8 px-6">
-          <Link href="/" aria-label="Nest Deploy, home" className="flex items-center gap-2 rounded-md outline-offset-4">
+          <Link href="/" aria-label="Nest Deploy, home" className="flex shrink-0 items-center gap-2 rounded-md outline-offset-4">
             <NestMark className="size-6" />
-            <span className="font-pixel text-[19px] leading-none font-semibold">Nest Deploy</span>
+            <span className="font-pixel text-[19px] leading-none font-semibold whitespace-nowrap">Nest Deploy</span>
           </Link>
 
           <nav aria-label="Page sections" className="hidden items-center gap-6 md:flex">
@@ -56,7 +56,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
 
           <div className="ml-auto flex items-center gap-2">
             <ThemeButton />
-            <Link href="/login" className={`${small} hidden text-muted-foreground hover:text-foreground sm:inline-flex`}>
+            <Link href="/login" className={`${small} text-muted-foreground hover:text-foreground max-sm:hidden`}>
               Log in
             </Link>
             <Link href="/projects" className={`${small} shadow-border-base bg-background hover:bg-[var(--ds-gray-100)]`}>
@@ -70,7 +70,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         {children}
       </main>
 
-      <footer className="border-t">
+      <footer>
         <div className="mx-auto grid max-w-[1400px] gap-12 px-6 py-16 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
           <div>
             <Link href="/" className="flex items-center gap-2">
