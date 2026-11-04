@@ -119,13 +119,17 @@ export async function createProject(userId: string, raw: unknown): Promise<Proje
     );
   }
 
+  const mine = await db
+    .select({ slug: schema.projects.slug })
+    .from(schema.projects)
+    .where(eq(schema.projects.userId, userId));
+  if (mine.some((p) => p.slug === slug)) {
+    throw new HttpError(409, `You already have a project called "${slug}".`, "conflict");
+  }
   const clash = await db
-    .select({ id: schema.projects.id, slug: schema.projects.slug, port: schema.projects.port })
+    .select({ port: schema.projects.port })
     .from(schema.projects)
     .where(eq(schema.projects.serverId, input.serverId));
-  if (clash.some((p) => p.slug === slug)) {
-    throw new HttpError(409, `A project called "${slug}" already exists on this server.`, "conflict");
-  }
   if (clash.some((p) => p.port === input.port)) {
     throw new HttpError(
       409,
@@ -466,4 +470,11 @@ export async function deploymentLogs(userId: string, deploymentId: string, after
     )
     .orderBy(schema.deploymentLogs.id)
     .limit(limit);
+}
+
+/** Delete a project's records (deployments, logs and env vars cascade). */
+export async function deleteProjectRecords(userId: string, projectId: string) {
+  const project = await assertOwned(userId, projectId);
+  const db = await getDb();
+  await db.delete(schema.projects).where(eq(schema.projects.id, project.id));
 }

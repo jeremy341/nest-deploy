@@ -1,17 +1,21 @@
 import { LogsView } from "@/components/logs-view";
 import { PageHeader } from "@/components/page-header";
-import { logs } from "@/lib/mock";
+import { requireUser } from "@/server/auth/current";
+import { projectViews } from "@/server/queries";
 
 export const metadata = { title: "Logs" };
 
-export default function LogsPage() {
+export default async function LogsPage() {
+  const user = await requireUser();
+  const projects = await projectViews(user.id);
+
   return (
     <>
       <PageHeader
         title="Logs"
-        description="Build output and runtime messages from your projects."
+        description="What your apps print while they run, read from your container."
       />
-      <LogsView lines={logs} />
+      <LogsView projects={projects.map((p) => ({ id: p.id, name: p.name }))} />
     </>
   );
 }

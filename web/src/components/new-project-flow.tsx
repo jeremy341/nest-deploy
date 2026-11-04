@@ -1,344 +1,422 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
-  CaretRightIcon,
-  FolderIcon,
   GitBranchIcon,
   GithubLogoIcon,
   MagnifyingGlassIcon,
+  WarningCircleIcon,
 } from "@phosphor-icons/react";
+import { api } from "@/components/api";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { server } from "@/lib/mock";
 import { cn } from "@/lib/utils";
 
-type Repo = { name: string; pushed: string; root: string; preset: string };
+type Repo = {
+  id: number;
+  fullName: string;
+  private: boolean;
+  defaultBranch: string;
+  pushedAt: string | null;
+  cloneUrl: string;
+};
 
-// Sample repositories. A real build would read these through the GitHub App.
-const REPOS: Repo[] = [
-  { name: "sam-r/new-idea", pushed: "3h ago", root: "web", preset: "Node.js" },
-  { name: "sam-r/poorup", pushed: "Oct 30", root: "./", preset: "Node.js" },
-  { name: "sam-r/loadout", pushed: "Oct 29", root: "./", preset: "Node.js" },
-  { name: "sam-r/portfolio", pushed: "Oct 29", root: "./", preset: "Static" },
-];
+type Source = {
+  repoUrl: string;
+  repoFullName: string | null;
+  installationId: number | null;
+  branch: string;
+};
 
-const PRESETS = ["Node.js", "Python", "Static", "Dockerfile"];
+export type GithubState = {
+  configured: boolean;
+  installUrl: string | null;
+  installations: { id: number; account: string; type: string }[];
+  notice: string | null;
+};
 
-type Phase = "idle" | "deploying" | "done";
+type Server = { id: string; nestUsername: string; status: string };
 
-function Label({
-  htmlFor,
-  children,
-}: {
-  htmlFor: string;
-  children: React.ReactNode;
-}) {
+const RUNTIMES = [
+  { value: "node", label: "Node.js", hint: "npm start" },
+  { value: "python", label: "Python", hint: "python3 app.py" },
+  { value: "static", label: "Static site", hint: "served for you" },
+  { value: "command", label: "Custom command", hint: "./my-binary" },
+] as const;
+
+const selectClass =
+  "h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
+
+function Label({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) {
   return (
-    <label
-      htmlFor={htmlFor}
-      className="mb-1.5 block text-[13px] text-muted-foreground"
-    >
+    <label htmlFor={htmlFor} className="mb-1.5 block text-[13px] text-muted-foreground">
       {children}
     </label>
   );
 }
 
-const selectClass =
-  "h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
-
-function Configure({ repo, onBack }: { repo: Repo; onBack: () => void }) {
-  const [name, setName] = useState(repo.name.split("/")[1]);
-  const [phase, setPhase] = useState<Phase>("idle");
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    []
+function slugify(name: string) {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40)
+      .replace(/-+$/g, "") || "project"
   );
+}
 
-  const valid = /^[a-z0-9][a-z0-9-]{0,62}$/.test(name);
+function Configure({
+  source,
+  servers,
+  onBack,
+}: {
+  source: Source;
+  servers: Server[];
+  onBack: () => void;
+}) {
+  const router = useRouter();
+  const repoName = (source.repoFullName ?? source.repoUrl).split("/").pop()?.replace(/\.git$/, "") ?? "project";
+  const [name, setName] = useState(slugify(repoName));
+  const [serverId, setServerId] = useState(servers[0]?.id ?? "");
+  const [runtime, setRuntime] = useState<(typeof RUNTIMES)[number]["value"]>("node");
+  const [rootDir, setRootDir] = useState(".");
+  const [branch, setBranch] = useState(source.branch);
+  const [port, setPort] = useState("3000");
+  const [startCommand, setStartCommand] = useState("");
+  const [buildCommand, setBuildCommand] = useState("");
+  const [outputDir, setOutputDir] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function deploy() {
-    if (!valid || phase !== "idle") return;
-    setPhase("deploying");
-    // Simulated: there is no build worker behind this yet.
-    timer.current = setTimeout(() => setPhase("done"), 2600);
+  const nameOk = /^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]?$/.test(name);
+  const hint = RUNTIMES.find((r) => r.value === runtime)?.hint ?? "";
+
+  async function submit() {
+    setError(null);
+    setBusy(true);
+    try {
+      const created = await api<{ project: { id: string; slug: string } }>("/api/projects", {
+        body: {
+          serverId,
+          name,
+          slug: name,
+          repoUrl: source.repoUrl,
+          repoFullName: source.repoFullName,
+          installationId: source.installationId,
+          productionBranch: branch,
+          rootDir: rootDir || ".",
+          runtime,
+          startCommand: startCommand.trim() || null,
+          buildCommand: buildCommand.trim() || null,
+          outputDir: runtime === "static" ? outputDir.trim() || null : null,
+          port: Number(port),
+        },
+      });
+      const dep = await api<{ deployment: { id: string } }>(
+        `/api/projects/${created.project.id}/deploy`,
+        { body: {} }
+      );
+      router.push(`/projects/${created.project.slug}/deployments/${dep.deployment.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+      setBusy(false);
+    }
+  }
+
+  if (servers.length === 0) {
+    return (
+      <div className="mx-auto max-w-[600px] rounded-lg bg-card p-6 text-center shadow-border-small">
+        <p className="text-lg font-semibold tracking-[-0.02em]">Connect a server first</p>
+        <p className="mt-1 text-muted-foreground">Projects are deployed to a Nest container.</p>
+        <Link href="/connect" className={cn(buttonVariants(), "mt-4 h-10 px-4")}>
+          Connect a server
+        </Link>
+      </div>
+    );
   }
 
   return (
-    <div className="mx-auto w-full max-w-[600px] space-y-6">
-      <section
-        aria-labelledby="new-heading"
-        className="rounded-lg bg-card p-5 shadow-border-small"
-      >
-        <h1
-          id="new-heading"
-          className="text-2xl font-semibold tracking-[-0.04em]"
-        >
-          New Project
-        </h1>
+    <section aria-labelledby="new-heading" className="mx-auto w-full max-w-[600px] rounded-lg bg-card p-5 shadow-border-small">
+      <h1 id="new-heading" className="text-2xl font-semibold tracking-[-0.04em]">
+        New Project
+      </h1>
 
-        <div className="mt-5 rounded-md bg-[var(--ds-gray-100)] px-3 py-2.5">
-          <p className="text-[12px] text-muted-foreground">
-            Importing from GitHub
-          </p>
-          <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="flex items-center gap-1.5 font-medium">
-              <GithubLogoIcon className="size-4" />
-              {repo.name}
-            </span>
-            <span className="flex items-center gap-1.5 font-mono text-[13px] text-muted-foreground">
-              <GitBranchIcon className="size-4" />
-              main
-            </span>
-            <span className="flex items-center gap-1.5 font-mono text-[13px] text-muted-foreground">
-              <FolderIcon className="size-4" />
-              {repo.root}
-            </span>
-          </p>
-        </div>
-
-        <p className="mt-5 text-muted-foreground">
-          Choose where the project runs and give it a name.
+      <div className="mt-5 rounded-md bg-[var(--ds-gray-100)] px-3 py-2.5">
+        <p className="text-[12px] text-muted-foreground">Importing from GitHub</p>
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="flex items-center gap-1.5 font-medium">
+            <GithubLogoIcon className="size-4" />
+            {source.repoFullName ?? source.repoUrl.replace("https://github.com/", "")}
+          </span>
         </p>
+      </div>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="np-server">Nest server</Label>
+          <select id="np-server" className={selectClass} value={serverId} onChange={(e) => setServerId(e.target.value)}>
+            {servers.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nestUsername}.hackclub.app
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label htmlFor="np-name">Project name</Label>
+          <Input
+            id="np-name"
+            value={name}
+            onChange={(e) => setName(e.target.value.toLowerCase())}
+            aria-invalid={!nameOk}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {!nameOk ? (
+            <p className="mt-1.5 text-[13px] text-destructive">Use lowercase letters, numbers and hyphens.</p>
+          ) : null}
+        </div>
+        <div>
+          <Label htmlFor="np-runtime">Application preset</Label>
+          <select id="np-runtime" className={selectClass} value={runtime} onChange={(e) => setRuntime(e.target.value as typeof runtime)}>
+            {RUNTIMES.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label htmlFor="np-branch">Production branch</Label>
+          <Input id="np-branch" value={branch} onChange={(e) => setBranch(e.target.value)} className="font-mono" />
+        </div>
+        <div>
+          <Label htmlFor="np-root">Root directory</Label>
+          <Input id="np-root" value={rootDir} onChange={(e) => setRootDir(e.target.value)} className="font-mono" />
+        </div>
+        <div>
+          <Label htmlFor="np-port">Port your app listens on</Label>
+          <Input id="np-port" inputMode="numeric" value={port} onChange={(e) => setPort(e.target.value)} className="font-mono" />
+        </div>
+        <div className="sm:col-span-2">
+          <Label htmlFor="np-start">Start command (optional)</Label>
+          <Input id="np-start" value={startCommand} onChange={(e) => setStartCommand(e.target.value)} placeholder={hint} className="font-mono" />
+        </div>
+        <div className={runtime === "static" ? "" : "sm:col-span-2"}>
+          <Label htmlFor="np-build">Build command (optional)</Label>
+          <Input id="np-build" value={buildCommand} onChange={(e) => setBuildCommand(e.target.value)} placeholder="detected from package.json" className="font-mono" />
+        </div>
+        {runtime === "static" ? (
           <div>
-            <Label htmlFor="np-server">Nest server</Label>
-            <select id="np-server" className={selectClass} defaultValue="s">
-              <option value="s">{server.host}</option>
-            </select>
+            <Label htmlFor="np-out">Output directory</Label>
+            <Input id="np-out" value={outputDir} onChange={(e) => setOutputDir(e.target.value)} placeholder="dist" className="font-mono" />
           </div>
-          <div>
-            <Label htmlFor="np-name">Project name</Label>
-            <Input
-              id="np-name"
-              value={name}
-              onChange={(e) => setName(e.target.value.toLowerCase())}
-              aria-invalid={!valid}
-              aria-describedby={valid ? undefined : "np-name-error"}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            {!valid ? (
-              <p id="np-name-error" className="mt-1.5 text-[13px] text-destructive">
-                Use lowercase letters, numbers and hyphens.
+        ) : null}
+      </div>
+
+      <p className="mt-4 text-[13px] text-muted-foreground">
+        Your app must listen on the <code className="font-mono">PORT</code> environment variable on{" "}
+        <code className="font-mono">0.0.0.0</code>. Environment variables can be added in the project settings.
+      </p>
+
+      {error ? (
+        <p role="alert" className="mt-4 flex gap-2 rounded-md bg-destructive/5 p-3 text-destructive">
+          <WarningCircleIcon className="mt-0.5 size-4 shrink-0" />
+          {error}
+        </p>
+      ) : null}
+
+      <Button className="mt-5 h-10 w-full" onClick={() => void submit()} disabled={busy || !nameOk || !serverId}>
+        {busy ? "Starting deployment..." : "Deploy"}
+      </Button>
+      <button type="button" onClick={onBack} className="mt-3 w-full text-center text-[13px] text-muted-foreground hover:text-foreground">
+        Import a different Git repository
+      </button>
+    </section>
+  );
+}
+
+function GithubRepos({
+  installationId,
+  onPick,
+}: {
+  installationId: number;
+  onPick: (repo: Repo) => void;
+}) {
+  const [repos, setRepos] = useState<Repo[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    api<{ repos: Repo[] }>(`/api/github/repos?installation=${installationId}`)
+      .then((r) => {
+        if (!cancelled) setRepos(r.repos);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Could not load repositories");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [installationId]);
+
+  if (error) return <p role="alert" className="text-destructive">{error}</p>;
+  if (!repos) return <div aria-busy="true" className="skeleton-sweep h-40 rounded-lg" />;
+
+  const q = query.trim().toLowerCase();
+  const list = q ? repos.filter((r) => r.fullName.toLowerCase().includes(q)) : repos;
+
+  return (
+    <div>
+      <div className="relative mb-3">
+        <MagnifyingGlassIcon aria-hidden="true" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input type="search" aria-label="Search repositories" placeholder="Search..." value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" />
+      </div>
+      {list.length === 0 ? (
+        <p className="rounded-lg border border-dashed px-6 py-10 text-center text-muted-foreground">
+          {repos.length === 0 ? "No repositories shared with the app yet." : `No repositories match “${query}”.`}
+        </p>
+      ) : (
+        <ul className="hairline-y overflow-hidden rounded-lg bg-card shadow-border-small">
+          {list.map((r) => (
+            <li key={r.id} className="flex items-center justify-between gap-3 px-4 py-3">
+              <p className="flex min-w-0 items-center gap-3">
+                <GithubLogoIcon className="size-5 shrink-0" />
+                <span className="truncate font-medium tracking-[-0.02em]">{r.fullName}</span>
+                {r.private ? <span className="shrink-0 rounded-full border px-2 text-[12px] text-muted-foreground">Private</span> : null}
               </p>
-            ) : null}
-          </div>
-          <div>
-            <Label htmlFor="np-root">Root directory</Label>
-            <Input id="np-root" defaultValue={repo.root} className="font-mono" />
-          </div>
-          <div>
-            <Label htmlFor="np-preset">Application preset</Label>
-            <select
-              id="np-preset"
-              className={selectClass}
-              defaultValue={repo.preset}
-            >
-              {PRESETS.map((p) => (
-                <option key={p}>{p}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-2">
-          {["Build and Output Settings", "Environment Variables"].map((t) => (
-            <details
-              key={t}
-              className="group shadow-border-base rounded-md bg-background"
-            >
-              <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 font-medium tracking-[-0.02em] select-none [&::-webkit-details-marker]:hidden">
-                <CaretRightIcon className="size-4 transition-transform group-open:rotate-90" />
-                {t}
-              </summary>
-              <div className="space-y-3 border-t px-3 py-3">
-                {t.startsWith("Build") ? (
-                  <>
-                    <div>
-                      <Label htmlFor="np-build">Build command</Label>
-                      <Input
-                        id="np-build"
-                        placeholder="pnpm build"
-                        className="font-mono"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="np-start">Start command</Label>
-                      <Input
-                        id="np-start"
-                        placeholder="node server.js"
-                        className="font-mono"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="np-port">Port</Label>
-                      <Input
-                        id="np-port"
-                        inputMode="numeric"
-                        placeholder="3000"
-                        className="font-mono"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-muted-foreground">
-                    Variables are stored encrypted and written to the server at
-                    deploy time. Adding them is not built yet.
-                  </p>
-                )}
-              </div>
-            </details>
+              <Button onClick={() => onPick(r)} className="px-3">
+                Import
+              </Button>
+            </li>
           ))}
-        </div>
-
-        <Button
-          className="mt-5 h-10 w-full"
-          onClick={deploy}
-          disabled={!valid || phase !== "idle"}
-        >
-          {phase === "idle"
-            ? "Deploy"
-            : phase === "deploying"
-              ? "Deploying..."
-              : "Deployed"}
-        </Button>
-        <button
-          type="button"
-          onClick={onBack}
-          className="mt-3 w-full text-center text-[13px] text-muted-foreground hover:text-foreground"
-        >
-          Import a different Git repository
-        </button>
-      </section>
-
-      <section
-        aria-labelledby="deployment-heading"
-        aria-live="polite"
-        className="rounded-lg bg-card p-5 shadow-border-small"
-      >
-        <h2
-          id="deployment-heading"
-          className={cn(
-            "text-2xl font-semibold tracking-[-0.04em]",
-            phase === "idle" && "text-subtle-foreground"
-          )}
-        >
-          Deployment
-        </h2>
-        {phase === "idle" ? (
-          <p className="mt-2 text-muted-foreground">
-            Once you&apos;re ready, start deploying to see the progress here.
-          </p>
-        ) : phase === "deploying" ? (
-          <p className="mt-2 flex items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="size-2 animate-pulse rounded-full bg-[var(--status-building)]"
-            />
-            Building {name}...
-          </p>
-        ) : (
-          <div className="mt-2">
-            <p className="flex items-center gap-2 font-medium">
-              <span
-                aria-hidden="true"
-                className="size-2 rounded-full bg-ready"
-              />
-              {name} is ready
-            </p>
-            <p className="mt-1 text-[13px] text-muted-foreground">
-              Design preview: nothing was deployed.
-            </p>
-            <Link
-              href="/"
-              className={cn(buttonVariants({ variant: "outline" }), "mt-4 px-3")}
-            >
-              Back to projects
-            </Link>
-          </div>
-        )}
-      </section>
+        </ul>
+      )}
     </div>
   );
 }
 
-export function NewProjectFlow() {
-  const [query, setQuery] = useState("");
-  const [picked, setPicked] = useState<Repo | null>(null);
+export function NewProjectFlow({ servers, github }: { servers: Server[]; github: GithubState }) {
+  const [source, setSource] = useState<Source | null>(null);
+  const [installation, setInstallation] = useState<number | null>(github.installations[0]?.id ?? null);
+  const [url, setUrl] = useState("");
+  const [urlError, setUrlError] = useState<string | null>(null);
 
-  if (picked) return <Configure repo={picked} onBack={() => setPicked(null)} />;
+  if (source) return <Configure source={source} servers={servers} onBack={() => setSource(null)} />;
 
-  const q = query.trim().toLowerCase();
-  const repos = q ? REPOS.filter((r) => r.name.includes(q)) : REPOS;
+  function useUrl(e: React.FormEvent) {
+    e.preventDefault();
+    const m = url.trim().match(/^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/);
+    if (!m) {
+      setUrlError("Enter a GitHub repository URL such as https://github.com/owner/name");
+      return;
+    }
+    setUrlError(null);
+    setSource({
+      repoUrl: `https://github.com/${m[1]}/${m[2]}`,
+      repoFullName: null,
+      installationId: null,
+      branch: "main",
+    });
+  }
 
   return (
     <div className="mx-auto w-full max-w-[720px]">
-      <h1 className="text-[32px] leading-10 font-semibold tracking-[-0.04em]">
-        Let&apos;s build something new
-      </h1>
+      <h1 className="text-[32px] leading-10 font-semibold tracking-[-0.04em]">Let&apos;s build something new</h1>
       <p className="mt-2 text-muted-foreground">
-        Import a Git repository and it will be built and run on your Nest
-        server.
+        Import a Git repository and it will be built and run on your Nest server.
       </p>
 
+      {github.notice ? (
+        <p role="status" className="mt-4 rounded-md bg-[var(--ds-gray-100)] p-3">
+          {github.notice}
+        </p>
+      ) : null}
+
       <section aria-labelledby="import-heading" className="mt-8">
-        <h2
-          id="import-heading"
-          className="mb-3 text-xl font-semibold tracking-[-0.02em]"
-        >
+        <h2 id="import-heading" className="mb-3 text-xl font-semibold tracking-[-0.02em]">
           Import Git Repository
         </h2>
-        <div className="relative mb-3">
-          <MagnifyingGlassIcon
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            type="search"
-            aria-label="Search repositories"
-            placeholder="Search..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        {repos.length === 0 ? (
-          <p className="rounded-lg border border-dashed px-6 py-10 text-center text-muted-foreground">
-            No repositories match “{query}”.
-          </p>
-        ) : (
-          <ul className="hairline-y overflow-hidden rounded-lg bg-card shadow-border-small">
-            {repos.map((r) => (
-              <li
-                key={r.name}
-                className="flex items-center justify-between gap-3 px-4 py-3"
-              >
-                <p className="flex min-w-0 items-center gap-3">
-                  <GithubLogoIcon className="size-5 shrink-0" />
-                  <span className="truncate font-medium tracking-[-0.02em]">
-                    {r.name}
-                  </span>
-                  <span className="shrink-0 text-muted-foreground">
-                    · {r.pushed}
-                  </span>
-                </p>
-                <Button onClick={() => setPicked(r)} className="px-3">
-                  Import
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="mt-3 text-[13px] text-muted-foreground">
-          Sample repositories. Connecting GitHub is not built yet.
-        </p>
+
+        {github.configured && github.installations.length > 0 && installation ? (
+          <>
+            <div className="mb-3 flex items-center gap-2">
+              <label htmlFor="gh-install" className="sr-only">GitHub account</label>
+              <select id="gh-install" value={installation} onChange={(e) => setInstallation(Number(e.target.value))} className={cn(selectClass, "max-w-56")}>
+                {github.installations.map((i) => (
+                  <option key={i.id} value={i.id}>{i.account}</option>
+                ))}
+              </select>
+              {github.installUrl ? (
+                <a href={github.installUrl} className="text-[13px] text-muted-foreground underline">
+                  Add another account or repository
+                </a>
+              ) : null}
+            </div>
+            <GithubRepos
+              key={installation}
+              installationId={installation}
+              onPick={(r) =>
+                setSource({
+                  repoUrl: `https://github.com/${r.fullName}`,
+                  repoFullName: r.fullName,
+                  installationId: installation,
+                  branch: r.defaultBranch,
+                })
+              }
+            />
+          </>
+        ) : github.configured ? (
+          <div className="rounded-lg bg-card p-5 shadow-border-small">
+            <p className="font-medium tracking-[-0.02em]">Connect GitHub</p>
+            <p className="mt-1 text-muted-foreground">
+              Install the Nest Deploy GitHub App to pick repositories, deploy private ones, and deploy on every push.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {github.installUrl ? (
+                <a href={github.installUrl} className={cn(buttonVariants(), "h-9 px-3")}>
+                  <GithubLogoIcon />
+                  Install the GitHub App
+                </a>
+              ) : null}
+              <a href="/api/github/connect" className={cn(buttonVariants({ variant: "outline" }), "h-9 px-3")}>
+                I already installed it
+              </a>
+            </div>
+          </div>
+        ) : null}
+
+        <form onSubmit={useUrl} className="mt-6 rounded-lg bg-card p-5 shadow-border-small">
+          <label htmlFor="repo-url" className="font-medium tracking-[-0.02em]">
+            {github.configured ? "Or use a public repository URL" : "Public repository URL"}
+          </label>
+          <div className="mt-2 flex gap-2">
+            <Input
+              id="repo-url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://github.com/owner/name"
+              aria-invalid={Boolean(urlError)}
+              autoComplete="off"
+              spellCheck={false}
+              className="font-mono"
+            />
+            <Button type="submit" className="px-3" disabled={!url.trim()}>
+              <GitBranchIcon />
+              Continue
+            </Button>
+          </div>
+          {urlError ? <p role="alert" className="mt-2 text-[13px] text-destructive">{urlError}</p> : null}
+          {!github.configured ? (
+            <p className="mt-2 text-[13px] text-muted-foreground">
+              The GitHub App is not set up on this installation, so only public repositories work, and pushes do not deploy automatically.
+            </p>
+          ) : null}
+        </form>
       </section>
     </div>
   );

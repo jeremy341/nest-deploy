@@ -1,13 +1,13 @@
 import type { Icon } from "@phosphor-icons/react";
 import {
   CubeIcon,
+  GearSixIcon,
   GlobeSimpleIcon,
   HardDrivesIcon,
   ListDashesIcon,
   SquaresFourIcon,
   TriangleIcon,
 } from "@phosphor-icons/react";
-import { getProject } from "@/lib/mock";
 
 export type NavItem = {
   href: string;
@@ -62,10 +62,10 @@ const TEAM_ITEMS: NavItem[] = [
 ];
 
 const TEAM_TITLES: Record<string, string> = {
-  "/": "Server Overview",
-  "/deployments": "Server Deployments",
-  "/logs": "Server Logs",
-  "/domains": "Server Domains",
+  "/": "Overview",
+  "/deployments": "Deployments",
+  "/logs": "Logs",
+  "/domains": "Domains",
   "/connect": "Connect a Server",
 };
 
@@ -84,6 +84,12 @@ function projectItems(slug: string): NavItem[] {
       icon: CubeIcon,
       active: (p) => p.startsWith(`${base}/deployments`),
     },
+    {
+      href: `${base}/settings`,
+      label: "Settings",
+      icon: GearSixIcon,
+      active: (p) => p.startsWith(`${base}/settings`),
+    },
   ];
 }
 
@@ -93,14 +99,16 @@ export function navFor(pathname: string): NavContext {
   if (match) {
     const slug = match[1];
     const rest = match[2] ?? "";
-    const project = getProject(slug);
-    const name = project?.name ?? slug;
+    const name = slug;
 
     let title = "Project Overview";
     let backHref = "/";
     if (rest.startsWith("/deployments/")) {
       title = "Deployment";
       backHref = `/projects/${slug}/deployments`;
+    } else if (rest.startsWith("/settings")) {
+      title = "Project Settings";
+      backHref = `/projects/${slug}`;
     } else if (rest.startsWith("/deployments")) {
       title = "Project Deployments";
       backHref = `/projects/${slug}`;

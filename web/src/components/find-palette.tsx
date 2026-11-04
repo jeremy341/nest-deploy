@@ -12,7 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { findTargets } from "@/lib/nav";
-import { projects } from "@/lib/mock";
+import { useAccount } from "@/components/account-context";
 import { cn } from "@/lib/utils";
 
 type FindContextValue = { open: () => void };
@@ -62,7 +62,8 @@ function Palette({ onClose }: { onClose: () => void }) {
   const [index, setIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const targets = useMemo(() => findTargets(projects), []);
+  const { projects } = useAccount();
+  const targets = useMemo(() => findTargets(projects), [projects]);
   const q = query.trim().toLowerCase();
   const results = q
     ? targets.filter((t) => t.label.toLowerCase().includes(q))

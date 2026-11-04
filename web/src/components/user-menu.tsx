@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { BookOpenIcon, PlusIcon, SignOutIcon } from "@phosphor-icons/react";
+import { initials, useAccount } from "@/components/account-context";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -13,11 +14,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { server } from "@/lib/mock";
 import { cn } from "@/lib/utils";
 
 /** Account row at the bottom of the sidebar. */
 export function UserMenu({ className }: { className?: string }) {
+  const { user } = useAccount();
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -29,14 +31,14 @@ export function UserMenu({ className }: { className?: string }) {
       >
         <Avatar size="sm">
           <AvatarFallback className="text-[10px] font-medium uppercase">
-            {server.username.slice(0, 2)}
+            {initials(user.name)}
           </AvatarFallback>
         </Avatar>
-        <span className="min-w-0 flex-1 truncate">{server.username}</span>
+        <span className="min-w-0 flex-1 truncate">{user.name}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-60" align="start" side="top">
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Signed in as {server.username}</DropdownMenuLabel>
+          <DropdownMenuLabel>Signed in as {user.name}</DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem render={<Link href="/connect" />}>
@@ -45,11 +47,7 @@ export function UserMenu({ className }: { className?: string }) {
         </DropdownMenuItem>
         <DropdownMenuItem
           render={
-            <a
-              href="https://guides.hackclub.app"
-              target="_blank"
-              rel="noreferrer"
-            />
+            <a href="https://guides.hackclub.app" target="_blank" rel="noreferrer" />
           }
         >
           <BookOpenIcon />
@@ -61,10 +59,16 @@ export function UserMenu({ className }: { className?: string }) {
           <ThemeToggle />
         </div>
         <DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href="/login" />}>
-          <SignOutIcon />
-          Log out
-        </DropdownMenuItem>
+        {/* A form POST, so logging out cannot be triggered by a link. */}
+        <form action="/api/auth/logout" method="post">
+          <button
+            type="submit"
+            className="flex min-h-8 w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm outline-none hover:bg-accent focus-visible:bg-accent"
+          >
+            <SignOutIcon className="size-4" />
+            Log out
+          </button>
+        </form>
       </DropdownMenuContent>
     </DropdownMenu>
   );

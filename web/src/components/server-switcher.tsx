@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { CaretUpDownIcon, CheckIcon, PlusIcon } from "@phosphor-icons/react";
+import { initials, useAccount } from "@/components/account-context";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -13,15 +14,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { server } from "@/lib/mock";
 import { cn } from "@/lib/utils";
 
 /** The Nest server picker. Plays the role of Vercel's team switcher. */
 export function ServerSwitcher({ className }: { className?: string }) {
+  const { servers } = useAccount();
+  const current = servers[0];
+  const label = current?.nestUsername ?? "No server";
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label={`Server: ${server.username}`}
+        aria-label={`Server: ${label}`}
         className={cn(
           "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left font-medium tracking-[-0.02em] outline-none transition-colors hover:bg-[var(--ds-gray-100)] aria-expanded:bg-[var(--ds-gray-100)]",
           className
@@ -29,10 +33,10 @@ export function ServerSwitcher({ className }: { className?: string }) {
       >
         <Avatar size="sm">
           <AvatarFallback className="text-[10px] font-medium uppercase">
-            {server.username.slice(0, 2)}
+            {current ? initials(current.nestUsername) : "+"}
           </AvatarFallback>
         </Avatar>
-        <span className="min-w-0 flex-1 truncate">{server.username}</span>
+        <span className="min-w-0 flex-1 truncate">{label}</span>
         <Badge variant="outline" className="font-normal">
           Nest
         </Badge>
@@ -41,15 +45,21 @@ export function ServerSwitcher({ className }: { className?: string }) {
       <DropdownMenuContent className="w-64" align="start">
         <DropdownMenuGroup>
           <DropdownMenuLabel>Nest servers</DropdownMenuLabel>
-          <DropdownMenuItem>
-            <Avatar size="sm">
-              <AvatarFallback className="text-[10px] font-medium uppercase">
-                {server.username.slice(0, 2)}
-              </AvatarFallback>
-            </Avatar>
-            <span className="truncate">{server.host}</span>
-            <CheckIcon className="ml-auto" />
-          </DropdownMenuItem>
+          {servers.length === 0 ? (
+            <p className="px-2 py-1.5 text-muted-foreground">Nothing connected yet.</p>
+          ) : (
+            servers.map((s, i) => (
+              <DropdownMenuItem key={s.id} render={<Link href="/connect" />}>
+                <Avatar size="sm">
+                  <AvatarFallback className="text-[10px] font-medium uppercase">
+                    {initials(s.nestUsername)}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="truncate">{s.host === "hackclub.app" ? `${s.nestUsername}.hackclub.app` : s.host}</span>
+                {i === 0 ? <CheckIcon className="ml-auto" /> : null}
+              </DropdownMenuItem>
+            ))
+          )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem render={<Link href="/connect" />}>

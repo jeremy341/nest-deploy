@@ -34,6 +34,8 @@ const schema = z.object({
   BUILD_IMAGE_PYTHON: z.string().default("python:3.12-bookworm"),
   BUILD_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(900),
   DEPLOY_WORK_DIR: z.string().default("./data/work"),
+  /** Where systemd units are written on the container. Only change for testing. */
+  UNIT_DIR: z.string().default("/etc/systemd/system"),
   /** Where Nest's SSH bastion lives. */
   NEST_HOST: z.string().default("hackclub.app"),
   NEST_PORT: z.coerce.number().int().positive().default(22),

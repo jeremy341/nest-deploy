@@ -117,7 +117,7 @@ CREATE TABLE `projects` (
 	FOREIGN KEY (`server_id`) REFERENCES `servers`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `projects_server_slug_idx` ON `projects` (`server_id`,`slug`);--> statement-breakpoint
+CREATE UNIQUE INDEX `projects_user_slug_idx` ON `projects` (`user_id`,`slug`);--> statement-breakpoint
 CREATE INDEX `projects_user_idx` ON `projects` (`user_id`);--> statement-breakpoint
 CREATE TABLE `servers` (
 	`id` text PRIMARY KEY NOT NULL,

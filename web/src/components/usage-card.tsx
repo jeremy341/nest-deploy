@@ -1,52 +1,88 @@
 import { cn } from "@/lib/utils";
-import { usage } from "@/lib/mock";
+import type { ServerView } from "@/server/queries";
 
-export function UsageCard() {
+type Row = { label: string; used: number; total: number; display: string };
+
+function rows(usage: NonNullable<ServerView["usage"]>): Row[] {
+  const out: Row[] = [];
+  if (usage.cpuLoad !== null && usage.cpus) {
+    out.push({
+      label: "CPU load",
+      used: Math.min(usage.cpuLoad, usage.cpus),
+      total: usage.cpus,
+      display: `${usage.cpuLoad.toFixed(2)} / ${usage.cpus}`,
+    });
+  }
+  if (usage.memUsedMb !== null && usage.memTotalMb) {
+    out.push({
+      label: "Memory",
+      used: usage.memUsedMb,
+      total: usage.memTotalMb,
+      display: `${(usage.memUsedMb / 1024).toFixed(1)} / ${(usage.memTotalMb / 1024).toFixed(1)} GB`,
+    });
+  }
+  if (usage.diskUsedMb !== null && usage.diskTotalMb) {
+    out.push({
+      label: "Disk",
+      used: usage.diskUsedMb,
+      total: usage.diskTotalMb,
+      display: `${(usage.diskUsedMb / 1024).toFixed(1)} / ${(usage.diskTotalMb / 1024).toFixed(1)} GB`,
+    });
+  }
+  return out;
+}
+
+/** Container usage from the last time we talked to the server. */
+export function UsageCard({ server }: { server: ServerView | undefined }) {
+  const list = server?.usage ? rows(server.usage) : [];
+
   return (
-    <section
-      aria-labelledby="usage-heading"
-      className="rounded-lg bg-card shadow-border-small"
-    >
+    <section aria-labelledby="usage-heading" className="rounded-lg bg-card shadow-border-small">
       <div className="border-b px-4 py-3">
         <h2 id="usage-heading" className="text-sm font-medium tracking-[-0.02em]">
           Container usage
         </h2>
         <p className="mt-0.5 text-[13px] text-muted-foreground">
-          Default Nest limits
+          {server ? `${server.nestUsername}.hackclub.app` : "No server connected"}
         </p>
       </div>
-      <ul className="hairline-y">
-        {usage.map((item) => {
-          const ratio = item.used / item.total;
-          const hot = ratio >= 0.8;
-          return (
-            <li key={item.label} className="px-4 py-3">
-              <div className="flex items-baseline justify-between gap-3">
-                <span>{item.label}</span>
-                <span className="tabular font-mono text-[12px] text-muted-foreground">
-                  {item.used} / {item.total} {item.unit}
-                </span>
-              </div>
-              <div
-                role="meter"
-                aria-label={`${item.label} usage`}
-                aria-valuemin={0}
-                aria-valuemax={item.total}
-                aria-valuenow={item.used}
-                className="mt-2 h-1 overflow-hidden rounded-full bg-muted"
-              >
+      {list.length === 0 ? (
+        <p className="px-4 py-5 text-muted-foreground">
+          {server
+            ? "Run Test connection on the Connect page to read usage."
+            : "Connect a server to see its usage."}
+        </p>
+      ) : (
+        <ul className="hairline-y">
+          {list.map((item) => {
+            const ratio = item.total > 0 ? item.used / item.total : 0;
+            const hot = ratio >= 0.8;
+            return (
+              <li key={item.label} className="px-4 py-3">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span>{item.label}</span>
+                  <span className="tabular font-mono text-[12px] text-muted-foreground">
+                    {item.display}
+                  </span>
+                </div>
                 <div
-                  className={cn(
-                    "h-full rounded-full",
-                    hot ? "bg-warning" : "bg-foreground"
-                  )}
-                  style={{ width: `${Math.round(ratio * 100)}%` }}
-                />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+                  role="meter"
+                  aria-label={`${item.label} usage`}
+                  aria-valuemin={0}
+                  aria-valuemax={item.total}
+                  aria-valuenow={item.used}
+                  className="mt-2 h-1 overflow-hidden rounded-full bg-muted"
+                >
+                  <div
+                    className={cn("h-full rounded-full", hot ? "bg-warning" : "bg-foreground")}
+                    style={{ width: `${Math.round(Math.min(ratio, 1) * 100)}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }

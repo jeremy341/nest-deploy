@@ -1,15 +1,16 @@
 # Nest Deploy web app
 
-Second UI pass: a Vercel-style dashboard for Nest servers, with Vercel's sidebar layout and design tokens. Every screen uses sample data from `src/lib/mock.ts`. Nothing talks to Nest, GitHub, or Hack Club Auth yet.
+A Vercel-style dashboard and the backend behind it: Hack Club sign-in, SSH to a Nest container, builds, releases, rollbacks, GitHub webhooks. See [docs/backend-setup.md](../docs/backend-setup.md) for setup, security notes and the API.
 
 ## Run it
 
 ```bash
 pnpm install
-pnpm dev
+pnpm setup     # creates .env.local (random APP_SECRET, DEV_LOGIN=1)
+pnpm dev       # http://localhost:3000, deployment worker included
 ```
 
-The app opens on http://localhost:3000. Use `pnpm lint` and `pnpm build` before committing.
+Other commands: `pnpm test`, `pnpm lint`, `pnpm build`, `pnpm worker` (standalone worker), `pnpm fake-nest` (a stand-in Nest container for local trials).
 
 ## Stack
 
@@ -51,10 +52,25 @@ Vercel's Geist docs name a component package (`@vercel/geistcn`), but it is not 
 | `/connect` | The SSH key flow for connecting a Nest server |
 | `/login` | Hack Club Auth sign-in screen |
 
-## Not wired yet
+## Backend layout
 
-- Sign-in, the SSH connection test, deploy, redeploy, and rollback are placeholders.
-- The public key on `/connect` is a sample string, not a real key.
-- The brand mark is a placeholder ring.
-- Search, filters, the Find palette (press `F`) and the domain form work, but only on the sample data in memory.
-- Project thumbnails are a labelled placeholder, and the traffic and health cards show sample numbers.
+| Path | What it holds |
+| --- | --- |
+| `src/server/db` | Drizzle schema and SQLite (libsql) connection; migrations in `drizzle/` |
+| `src/server/auth` | Hack Club OAuth, hashed sessions, current user |
+| `src/server/ssh` | ed25519 keys, SSH session wrapper, container probe |
+| `src/server/deploy` | Build runner, release scripts, pipeline (deploy, revert, rollback, prune) |
+| `src/server/jobs.ts` | Durable queue and worker loop |
+| `src/server/github` | GitHub App auth, repository listing, webhooks |
+| `src/server/projects.ts`, `servers.ts`, `domains.ts` | Services used by the API and the pages |
+| `src/server/queries.ts` | Read models for the dashboard |
+| `src/app/api` | REST routes |
+| `worker/`, `scripts/` | Standalone worker, setup, fake Nest |
+
+## Not done yet
+
+- Project screenshots on the overview. It shows live deployment details instead.
+- Traffic analytics and monitoring charts: there is no data source for them yet.
+- Team access, and building from hosts other than GitHub.
+- Domain mapping inside Nest is manual, because Nest has no API for it. Nest Deploy records the intent, shows exact steps, and checks DNS.
+- Not yet run against a real Nest container or with Docker builds; see the end of [docs/backend-setup.md](../docs/backend-setup.md).

@@ -8,16 +8,12 @@ import {
 import { DeploymentActions } from "@/components/deployment-actions";
 import { StatusDot } from "@/components/status-dot";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  isCurrentProduction,
-  projectName,
-  type Deployment,
-} from "@/lib/mock";
+import type { DeploymentView } from "@/server/queries";
 import { cn } from "@/lib/utils";
 
-function EnvPill({ deployment }: { deployment: Deployment }) {
-  const current = isCurrentProduction(deployment);
-  const Icon = deployment.env === "Preview" ? EyeIcon : ArrowFatLineUpIcon;
+function EnvPill({ deployment }: { deployment: DeploymentView }) {
+  const current = deployment.isCurrent;
+  const Icon = deployment.env === "preview" ? EyeIcon : ArrowFatLineUpIcon;
   return (
     <span
       className={cn(
@@ -28,7 +24,7 @@ function EnvPill({ deployment }: { deployment: Deployment }) {
       )}
     >
       <Icon className="size-3.5" weight={current ? "fill" : "regular"} />
-      {deployment.env}
+      {deployment.env === "preview" ? "Preview" : "Production"}
     </span>
   );
 }
@@ -42,10 +38,11 @@ export function DeploymentRow({
   deployment,
   showProject = true,
 }: {
-  deployment: Deployment;
+  deployment: DeploymentView;
   showProject?: boolean;
 }) {
   const href = `/projects/${deployment.projectSlug}/deployments/${deployment.id}`;
+  const title = deployment.commit ?? `${deployment.source} deployment`;
 
   return (
     <li
@@ -63,7 +60,7 @@ export function DeploymentRow({
             href={`/projects/${deployment.projectSlug}`}
             className="truncate font-medium tracking-[-0.02em] hover:underline"
           >
-            {projectName(deployment.projectSlug)}
+            {deployment.projectName}
           </Link>
         </p>
       ) : null}
@@ -72,31 +69,28 @@ export function DeploymentRow({
         <p className="min-w-0 truncate">
           {showProject ? (
             <span className="mr-2 font-medium tracking-[-0.02em] md:hidden">
-              {projectName(deployment.projectSlug)}
+              {deployment.projectName}
             </span>
           ) : null}
           <Link
             href={href}
             className="after:absolute after:inset-0 after:content-['']"
           >
-            {deployment.commit}
+            {title}
           </Link>
         </p>
-        <StatusDot
-          state={deployment.state}
-          className="shrink-0 md:order-none"
-        />
+        <StatusDot state={deployment.state} className="shrink-0" />
       </div>
 
       <div className="flex min-w-0 items-center justify-between gap-3 md:contents">
         <div className="flex min-w-0 flex-1 items-center gap-3 md:contents">
-          <span className="md:order-none">
+          <span>
             <EnvPill deployment={deployment} />
           </span>
           <p className="flex min-w-0 flex-1 items-center gap-3 font-mono text-[13px] text-muted-foreground">
             <span className="flex items-center gap-1">
               <GitCommitIcon className="size-4 shrink-0" />
-              {deployment.id}
+              {(deployment.sha ?? deployment.id).slice(0, 7)}
             </span>
             <span className="flex min-w-0 items-center gap-1">
               <GitBranchIcon className="size-4 shrink-0" />
@@ -108,14 +102,14 @@ export function DeploymentRow({
           <span className="whitespace-nowrap">{deployment.age}</span>
           <Avatar size="sm">
             <AvatarFallback className="text-[10px] uppercase">
-              {deployment.author.slice(0, 2)}
+              {(deployment.author ?? "?").slice(0, 2)}
             </AvatarFallback>
           </Avatar>
         </p>
       </div>
 
       <div className="relative z-10 hidden justify-self-end md:block">
-        <DeploymentActions id={deployment.id} />
+        <DeploymentActions deployment={deployment} />
       </div>
     </li>
   );

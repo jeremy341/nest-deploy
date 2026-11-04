@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { DeploymentRow } from "@/components/deployment-row";
 import { Segmented } from "@/components/segmented";
-import type { Deployment } from "@/lib/mock";
+import type { DeploymentView } from "@/server/queries";
 
 type Filter = "all" | "ready" | "building" | "error";
 
@@ -11,14 +11,27 @@ export function DeploymentsView({
   deployments,
   showProject = true,
 }: {
-  deployments: Deployment[];
+  deployments: DeploymentView[];
   showProject?: boolean;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const visible =
     filter === "all"
       ? deployments
-      : deployments.filter((d) => d.state === filter);
+      : deployments.filter((d) =>
+          filter === "error" ? d.state === "error" || d.state === "canceled" : d.state === filter
+        );
+
+  if (deployments.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed px-6 py-16 text-center">
+        <p className="font-medium">No deployments yet</p>
+        <p className="mt-1 text-muted-foreground">
+          Deploy a project and its releases will be listed here.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -46,11 +59,7 @@ export function DeploymentsView({
       ) : (
         <ul className="hairline-y overflow-hidden rounded-lg bg-card shadow-border-small">
           {visible.map((d) => (
-            <DeploymentRow
-              key={`${d.projectSlug}-${d.id}`}
-              deployment={d}
-              showProject={showProject}
-            />
+            <DeploymentRow key={d.id} deployment={d} showProject={showProject} />
           ))}
         </ul>
       )}

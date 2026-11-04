@@ -4,9 +4,11 @@ import {
   GithubLogoIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { StatusDot } from "@/components/status-dot";
-import type { Project } from "@/lib/mock";
+import type { ProjectView } from "@/server/queries";
 
-export function ProjectCard({ project }: { project: Project }) {
+export function ProjectCard({ project }: { project: ProjectView }) {
+  const address = project.domains[0] ?? `port ${project.port}`;
+
   return (
     <Link
       href={`/projects/${project.slug}`}
@@ -23,21 +25,29 @@ export function ProjectCard({ project }: { project: Project }) {
           <p className="truncate font-medium tracking-[-0.02em]">
             {project.name}
           </p>
-          <p className="truncate text-muted-foreground">{project.domain}</p>
+          <p className="truncate text-muted-foreground">{address}</p>
         </div>
         <StatusDot state={project.state} showLabel={false} className="pt-2" />
       </div>
 
       <p className="flex min-w-0 items-center gap-2">
         <GitCommitIcon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="truncate">{project.commit}</span>
+        <span className="truncate">
+          {project.lastCommit ?? (project.state ? "Deployment in progress" : "Not deployed yet")}
+        </span>
       </p>
 
       <p className="mt-auto flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
         <GithubLogoIcon className="size-4 shrink-0" />
-        <span className="truncate">{project.repo}</span>
-        <span aria-hidden="true">·</span>
-        <span className="shrink-0">{project.age}</span>
+        <span className="truncate">
+          {project.repo ?? project.repoUrl.replace("https://github.com/", "")}
+        </span>
+        {project.lastAge ? (
+          <>
+            <span aria-hidden="true">·</span>
+            <span className="shrink-0">{project.lastAge}</span>
+          </>
+        ) : null}
       </p>
     </Link>
   );

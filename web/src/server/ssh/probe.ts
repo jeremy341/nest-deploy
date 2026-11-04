@@ -108,6 +108,13 @@ export function probeIssues(p: NestProbe): ProbeIssue[] {
         "systemd is not available in this container, so Nest Deploy cannot keep your apps running or restart them.",
     });
   }
+  if (p.uid !== 0) {
+    issues.push({
+      level: "warning",
+      message:
+        "SSH did not log in as root. Nest normally does; without root, installing the service files may fail.",
+    });
+  }
   if (!p.has.tar) {
     issues.push({ level: "error", message: "tar is not installed." });
   }

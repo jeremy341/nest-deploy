@@ -113,7 +113,7 @@ export const projects = sqliteTable(
     updatedAt: ts("updated_at").notNull(),
   },
   (t) => [
-    uniqueIndex("projects_server_slug_idx").on(t.serverId, t.slug),
+    uniqueIndex("projects_user_slug_idx").on(t.userId, t.slug),
     index("projects_user_idx").on(t.userId),
   ]
 );

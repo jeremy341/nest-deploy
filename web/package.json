@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "fake-nest": "tsx --env-file-if-exists=.env.local --tsconfig tsconfig.json scripts/fake-nest.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

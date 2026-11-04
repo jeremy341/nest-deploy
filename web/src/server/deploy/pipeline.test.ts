@@ -90,7 +90,7 @@ beforeAll(async () => {
   await setEnvVar(userId, project.id, { key: "GREETING", value: "hello-secret-value", target: "all" });
 
   deps = {
-    build: fakeBuilder(() => files, { onBuild: (r) => buildLogs.push(r.branch ?? "") }),
+    build: fakeBuilder(() => files, { onBuild: (r) => buildLogs.push(r.source.branch) }),
     connect: connectToServer,
     unitDir: `${mock.home.replace(/\\/g, "/")}/units`,
     healthTimeoutSeconds: 8,

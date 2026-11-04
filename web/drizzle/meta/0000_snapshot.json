@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "18863f5b-b515-47ec-ab57-a360434c1b66",
+  "id": "8fec59d8-23d1-4e60-934a-11b2e73db9e5",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "audit_log": {
@@ -806,10 +806,10 @@
         }
       },
       "indexes": {
-        "projects_server_slug_idx": {
-          "name": "projects_server_slug_idx",
+        "projects_user_slug_idx": {
+          "name": "projects_user_slug_idx",
           "columns": [
-            "server_id",
+            "user_id",
             "slug"
           ],
           "isUnique": true

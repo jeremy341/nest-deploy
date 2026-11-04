@@ -16,8 +16,14 @@ import { fingerprintOfPublicKey } from "@/server/ssh/keys";
  */
 
 export type MockSshOptions = {
-  /** Public key lines allowed to authenticate. */
-  authorizedKeys: string[];
+  /** Public key lines allowed to authenticate, or a function that returns them. */
+  authorizedKeys: string[] | (() => Promise<string[]> | string[]);
+  /** Fixed scratch HOME (a Linux path). Defaults to a fresh temporary one. */
+  home?: string;
+  /** Listen on this port instead of a random one. */
+  port?: number;
+  /** Persisted host key, so the fingerprint survives restarts. */
+  hostKey?: string;
   /** Override how exec requests are answered. */
   handler?: (
     command: string,
@@ -42,7 +48,7 @@ export type MockSsh = {
 const DISTRO = process.env.TEST_WSL_DISTRO ?? "Ubuntu";
 
 let wslChecked: boolean | undefined;
-export function useWsl(): boolean {
+export function wslEnabled(): boolean {
   if (process.platform !== "win32") return false;
   if (wslChecked === undefined) {
     const r = spawnSync("wsl.exe", ["-d", DISTRO, "-e", "true"], { timeout: 30000 });
@@ -52,7 +58,7 @@ export function useWsl(): boolean {
 }
 
 function linuxSpawn(args: string[]) {
-  return useWsl()
+  return wslEnabled()
     ? spawn("wsl.exe", ["-d", DISTRO, "-e", ...args])
     : spawn(args[0], args.slice(1));
 }
@@ -77,42 +83,62 @@ function runIn(home: string, command: string, stdin: Buffer) {
 
 function runSync(home: string, command: string, input?: string) {
   const args = ["bash", "-c", WRAP, "_", home, command];
-  return useWsl()
+  return wslEnabled()
     ? spawnSync("wsl.exe", ["-d", DISTRO, "-e", ...args], { input })
     : spawnSync(args[0], args.slice(1), { input });
 }
 
 export async function startMockSsh(opts: MockSshOptions): Promise<MockSsh> {
-  const hostKey = utils.generateKeyPairSync("ed25519");
+  const generated = opts.hostKey ? null : utils.generateKeyPairSync("ed25519");
+  const hostKeyPrivate = opts.hostKey ?? generated!.private;
+  const hostKeyPublic = opts.hostKey
+    ? (() => {
+        const parsed = utils.parseKey(opts.hostKey);
+        if (parsed instanceof Error) throw parsed;
+        const k = Array.isArray(parsed) ? parsed[0] : parsed;
+        return `${k.type} ${k.getPublicSSH().toString("base64")}`;
+      })()
+    : generated!.public;
   const commands: string[] = [];
 
   let home: string;
-  if (useWsl()) {
+  if (opts.home) {
+    home = opts.home;
+  } else if (wslEnabled()) {
     home = `/tmp/nd-home-${randomBytes(5).toString("hex")}`;
   } else {
     home = mkdtempSync(path.join(tmpdir(), "nd-home-")).replace(/\\/g, "/");
   }
   runSync(home, "mkdir -p \"$HOME/.shims\"");
 
-  const allowed = opts.authorizedKeys.map((line) => {
-    const parsed = utils.parseKey(line);
-    if (parsed instanceof Error) throw parsed;
-    return Array.isArray(parsed) ? parsed[0] : parsed;
-  });
+  const loadAllowed = async () => {
+    const lines =
+      typeof opts.authorizedKeys === "function" ? await opts.authorizedKeys() : opts.authorizedKeys;
+    const out = [];
+    for (const line of lines) {
+      const parsed = utils.parseKey(line);
+      if (parsed instanceof Error) continue;
+      out.push(Array.isArray(parsed) ? parsed[0] : parsed);
+    }
+    return out;
+  };
 
   const handler = opts.handler ?? ((command, stdin) => runIn(home, command, stdin));
 
-  const server = new Server({ hostKeys: [hostKey.private] }, (client: Connection) => {
+  const server = new Server({ hostKeys: [hostKeyPrivate] }, (client: Connection) => {
     client.on("authentication", (ctx) => {
       if (ctx.method !== "publickey") return ctx.reject(["publickey"]);
-      const match = allowed.find(
-        (k) => k.type === ctx.key.algo && Buffer.compare(k.getPublicSSH(), ctx.key.data) === 0
-      );
-      if (!match) return ctx.reject(["publickey"]);
-      if (ctx.signature && match.verify(ctx.blob!, ctx.signature, ctx.hashAlgo) !== true) {
-        return ctx.reject(["publickey"]);
-      }
-      ctx.accept();
+      void (async () => {
+        const allowed = await loadAllowed();
+        const match = allowed.find(
+          (k) => k.type === ctx.key.algo && Buffer.compare(k.getPublicSSH(), ctx.key.data) === 0
+        );
+        if (!match) return ctx.reject(["publickey"]);
+        if (ctx.signature && match.verify(ctx.blob!, ctx.signature, ctx.hashAlgo) !== true) {
+          return ctx.reject(["publickey"]);
+        }
+        ctx.accept();
+      })();
     });
     client.on("error", () => {});
     client.on("ready", () => {
@@ -139,7 +165,7 @@ export async function startMockSsh(opts: MockSshOptions): Promise<MockSsh> {
     });
   });
 
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => server.listen(opts.port ?? 0, "127.0.0.1", resolve));
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;
 
@@ -150,7 +176,7 @@ export async function startMockSsh(opts: MockSshOptions): Promise<MockSsh> {
 
   return {
     port,
-    hostKeyFingerprint: fingerprintOfPublicKey(hostKey.public),
+    hostKeyFingerprint: fingerprintOfPublicKey(hostKeyPublic),
     home,
     commands,
     writeFile,
@@ -163,7 +189,7 @@ export async function startMockSsh(opts: MockSshOptions): Promise<MockSsh> {
             home,
             'for f in "$HOME"/.fake-systemd/*.pid; do [ -f "$f" ] && kill "$(cat "$f")" 2>/dev/null; done; true'
           );
-          if (useWsl()) runSync("/tmp", `rm -rf '${home}'`);
+          if (wslEnabled()) runSync("/tmp", `rm -rf '${home}'`);
           else {
             try {
               rmSync(home, { recursive: true, force: true });

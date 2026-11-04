@@ -22,3 +22,14 @@ Newest decisions are at the bottom. Each entry says what was decided and why. Wh
 10. **Next.js, TypeScript, Tailwind v4, shadcn/ui, Geist.** There is no official Vercel component library, so the dashboard is built from the public pieces closest to it: shadcn/ui components (copied into the repo and restyled), Geist Sans and Mono, and Geist-style color tokens. Icons come from Phosphor. See `web/README.md` for the design rules.
 11. **First UI pass uses sample data only.** Every screen reads from `web/src/lib/mock.ts`. Sign-in, the SSH test, and deploy actions are placeholders until the backend exists.
 12. **Second UI pass follows Vercel's current dashboard.** The layout is a left sidebar plus top bar (not top tabs), and the colors, shadows, spacing and motion come from the custom properties Vercel's dashboard serves, so values can be diffed. Dark-mode hue scales were not readable and are estimates. Captures used for this are kept locally and not committed (`reference/` is gitignored).
+
+## Backend (added 2026-11-04)
+
+13. **One Next.js process plus a queue.** API routes, pages and the deployment worker can run in a single process (`RUN_WORKER=1`), with the worker also runnable on its own. State lives in SQLite through libsql (prebuilt binaries; `better-sqlite3` needs a compiler on Windows).
+14. **Release folders and a symlink, not Docker, on Nest.** A deploy unpacks to `~/.nest-deploy/<project>/releases/<id>`, switches `current`, restarts a systemd unit and health-checks it; failure reverts the symlink. This answers the earlier "Docker or release folders" question with release folders, because rootless Docker inside a Nest container is still unverified.
+15. **Builds happen off Nest, in Docker.** The worker clones and builds in a resource-limited container and ships a tarball. Production dependencies are installed on Nest, so native modules match the server.
+16. **Uploads use an exec channel, not SFTP.** The bastion's SFTP support is unknown; `cat` over exec works if exec works.
+17. **Previews are real services on their own ports.** Newest two kept per project. Mapping a preview to a domain stays manual.
+18. **Domains are recorded, not configured.** There is no Nest API for mapping a domain to a port, so Nest Deploy tells the user what to enter and checks DNS.
+19. **Hack Club Auth for identity only, GitHub App for repositories.** The GitHub App's user authorization is used once, to learn which installations belong to a user, and the user token is not stored.
+

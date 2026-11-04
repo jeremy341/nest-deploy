@@ -1,6 +1,8 @@
 import { rmSync } from "node:fs";
 import { and, desc, eq } from "drizzle-orm";
 import { open } from "@/server/crypto";
+import { config, githubConfigured } from "@/server/config";
+import { installationToken } from "@/server/github/app";
 import { getDb, schema } from "@/server/db";
 import { defaultBuilder, type Builder } from "@/server/deploy/build";
 import {
@@ -40,7 +42,8 @@ export function defaultDeps(): PipelineDeps {
   return {
     build: defaultBuilder,
     connect: connectToServer,
-    unitDir: DEFAULT_UNIT_DIR,
+    installationToken: githubConfigured() ? (id) => installationToken(id) : undefined,
+    unitDir: config().UNIT_DIR || DEFAULT_UNIT_DIR,
     healthTimeoutSeconds: 45,
   };
 }

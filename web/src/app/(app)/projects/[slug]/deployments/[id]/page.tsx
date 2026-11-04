@@ -5,39 +5,26 @@ import {
   ArrowUpRightIcon,
   GitBranchIcon,
   GitCommitIcon,
+  WarningCircleIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { BuildLogs } from "@/components/build-logs";
 import { DeploymentActions } from "@/components/deployment-actions";
 import { StatusDot } from "@/components/status-dot";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { buttonVariants } from "@/components/ui/button";
-import {
-  buildLogFor,
-  deployments,
-  getDeployment,
-  getProject,
-  isCurrentProduction,
-} from "@/lib/mock";
+import { requireUser } from "@/server/auth/current";
+import { deploymentLogs } from "@/server/projects";
+import { deploymentView } from "@/server/queries";
 import { cn } from "@/lib/utils";
 
 type Props = { params: Promise<{ slug: string; id: string }> };
 
-export function generateStaticParams() {
-  return deployments.map((d) => ({ slug: d.projectSlug, id: d.id }));
-}
-
 export async function generateMetadata({ params }: Props) {
   const { id } = await params;
-  return { title: `Deployment ${id}` };
+  return { title: `Deployment ${id.slice(0, 7)}` };
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
       <dt className="mb-1 text-[13px] text-muted-foreground">{label}</dt>
@@ -48,50 +35,61 @@ function Field({
 
 async function Content({ params }: Props) {
   const { slug, id } = await params;
-  const project = getProject(slug);
-  const deployment = getDeployment(slug, id);
-  if (!project || !deployment) notFound();
+  const user = await requireUser();
+  let data;
+  try {
+    data = await deploymentView(user.id, id);
+  } catch {
+    notFound();
+  }
+  const { deployment: d, project, domains } = data;
+  if (project.slug !== slug) notFound();
 
-  const current = isCurrentProduction(deployment);
-  const lines = buildLogFor(deployment);
+  const logs = (await deploymentLogs(user.id, id)).map((l) => ({
+    id: l.id,
+    at: l.at.toISOString(),
+    level: l.level,
+    message: l.message,
+  }));
+  const address = domains[0];
 
   return (
     <div className="space-y-6">
       <nav aria-label="Breadcrumb" className="text-muted-foreground">
-        <Link
-          href={`/projects/${slug}/deployments`}
-          className="hover:text-foreground"
-        >
+        <Link href={`/projects/${slug}/deployments`} className="hover:text-foreground">
           Project Deployments
         </Link>
         <span aria-hidden="true" className="mx-2">
           /
         </span>
-        <span className="font-mono text-[13px] text-foreground">{id}</span>
+        <span className="font-mono text-[13px] text-foreground">{id.slice(0, 8)}</span>
       </nav>
 
-      <section
-        aria-labelledby="details-heading"
-        className="rounded-lg bg-card shadow-border-small"
-      >
+      {d.state === "error" && d.error ? (
+        <div role="status" className="flex gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+          <WarningCircleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <p>{d.error}</p>
+        </div>
+      ) : null}
+
+      <section aria-labelledby="details-heading" className="rounded-lg bg-card shadow-border-small">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-          <h1
-            id="details-heading"
-            className="font-medium tracking-[-0.02em]"
-          >
+          <h1 id="details-heading" className="font-medium tracking-[-0.02em]">
             Deployment Details
           </h1>
           <div className="flex items-center gap-2">
-            <a
-              href={`https://${project.domain}`}
-              target="_blank"
-              rel="noreferrer"
-              className={cn(buttonVariants(), "px-3")}
-            >
-              Visit
-              <ArrowUpRightIcon />
-            </a>
-            <DeploymentActions id={id} />
+            {address ? (
+              <a
+                href={`https://${address}`}
+                target="_blank"
+                rel="noreferrer"
+                className={cn(buttonVariants(), "px-3")}
+              >
+                Visit
+                <ArrowUpRightIcon />
+              </a>
+            ) : null}
+            <DeploymentActions deployment={d} />
           </div>
         </div>
 
@@ -100,48 +98,42 @@ async function Content({ params }: Props) {
             <span className="inline-flex items-center gap-2">
               <Avatar size="sm">
                 <AvatarFallback className="text-[10px] uppercase">
-                  {deployment.author.slice(0, 2)}
+                  {(d.author ?? "?").slice(0, 2)}
                 </AvatarFallback>
               </Avatar>
-              {deployment.author}
-              <span className="font-normal text-muted-foreground">
-                {deployment.age}
-              </span>
+              {d.author ?? d.source}
+              <span className="font-normal text-muted-foreground">{d.age}</span>
             </span>
           </Field>
           <Field label="Status">
             <span className="inline-flex items-center gap-2">
-              <StatusDot state={deployment.state} />
-              {current ? (
-                <span className="font-normal text-muted-foreground">
-                  Current
-                </span>
-              ) : null}
+              <StatusDot state={d.state} />
+              {d.isCurrent ? <span className="font-normal text-muted-foreground">Current</span> : null}
             </span>
           </Field>
-          <Field label="Duration">{deployment.duration}</Field>
-          <Field label="Environment">{deployment.env}</Field>
-          <Field label="Domain">
-            <span className="break-all">{project.domain}</span>
+          <Field label="Duration">{d.duration}</Field>
+          <Field label="Environment">{d.env === "preview" ? "Preview" : "Production"}</Field>
+          <Field label="Address">
+            <span className="break-all">
+              {address ?? (
+                <span className="font-normal text-muted-foreground">No domain recorded</span>
+              )}
+            </span>
           </Field>
           <Field label="Port">
-            <span className="tabular font-mono text-[13px] font-normal">
-              {project.port}
-            </span>
+            <span className="tabular font-mono text-[13px] font-normal">{d.port}</span>
           </Field>
           <div className="min-w-0 sm:col-span-2 lg:col-span-3">
             <dt className="mb-1 text-[13px] text-muted-foreground">Source</dt>
             <dd className="space-y-1">
               <p className="flex items-center gap-1.5 font-mono text-[13px]">
                 <GitBranchIcon className="size-4 shrink-0" />
-                {deployment.branch}
+                {d.branch}
               </p>
               <p className="flex min-w-0 items-center gap-1.5">
                 <GitCommitIcon className="size-4 shrink-0 text-muted-foreground" />
-                <span className="shrink-0 font-mono text-[13px]">
-                  {deployment.id}
-                </span>
-                <span className="truncate">{deployment.commit}</span>
+                <span className="shrink-0 font-mono text-[13px]">{(d.sha ?? "").slice(0, 7) || "pending"}</span>
+                <span className="truncate">{d.commit}</span>
               </p>
             </dd>
           </div>
@@ -149,9 +141,11 @@ async function Content({ params }: Props) {
       </section>
 
       <BuildLogs
-        lines={lines}
-        state={deployment.state}
-        duration={deployment.duration}
+        key={`${d.id}-${d.rawState}`}
+        deploymentId={d.id}
+        initialLines={logs}
+        rawState={d.rawState}
+        duration={d.duration}
       />
     </div>
   );

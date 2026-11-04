@@ -1,3 +1,4 @@
+import { unstable_rethrow } from "next/navigation";
 import { NextResponse, type NextRequest } from "next/server";
 import { ZodError, type ZodType } from "zod";
 import { getCurrentUser } from "@/server/auth/current";
@@ -73,6 +74,8 @@ export function handle<C = unknown>(
       if (!options.skipOriginCheck) assertSameOrigin(req);
       return await fn(req, ctx);
     } catch (err) {
+      // Let Next.js control-flow errors (dynamic-API bailouts, redirects) through.
+      unstable_rethrow(err);
       if (err instanceof HttpError) {
         return NextResponse.json(
           { error: { code: err.code, message: err.message } },
