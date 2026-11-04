@@ -2,7 +2,6 @@ import Link from "next/link";
 import { BuildLogs } from "@/components/build-logs";
 import { DeploymentsView } from "@/components/deployments-view";
 import { NestMark } from "@/components/nest-mark";
-import { PixelField } from "@/components/pixel-field";
 import { REPO_URL } from "@/lib/site";
 import { SAMPLE_DEPLOYMENTS, SAMPLE_LOG } from "@/lib/sample";
 import { cn } from "@/lib/utils";
@@ -21,12 +20,7 @@ const pill =
 
 function Hero() {
   return (
-    <section className="relative isolate overflow-hidden">
-      <PixelField
-        tone="mono"
-        cell={16}
-        className="[mask-image:radial-gradient(ellipse_65%_80%_at_50%_48%,black,transparent)]"
-      />
+    <section>
       <div
         className={cn(
           wrap,
@@ -217,13 +211,8 @@ function Faq() {
 
 function Cta() {
   return (
-    <section className="relative isolate overflow-hidden border-t">
-      <PixelField
-        tone="mono"
-        cell={16}
-        className="[mask-image:radial-gradient(ellipse_60%_90%_at_50%_100%,black,transparent)]"
-      />
-      <div className={cn(wrap, "relative py-28 text-center lg:py-36")}>
+    <section className="border-t">
+      <div className={cn(wrap, "py-28 text-center lg:py-36")}>
         <h2 className="mx-auto max-w-[14ch] text-[clamp(2.5rem,5vw,4rem)] leading-[1] font-[450] tracking-[-0.045em]">
           Ready to deploy?
         </h2>

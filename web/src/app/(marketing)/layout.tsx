@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { NestMark } from "@/components/nest-mark";
+import { PixelField } from "@/components/pixel-field";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NEST_GUIDES_URL, REPO_URL } from "@/lib/site";
 
@@ -15,6 +16,7 @@ const small =
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
+      <PixelField fixed autoDrops cell={16} />
       <a
         href="#top"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:shadow-menu"

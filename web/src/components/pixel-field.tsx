@@ -6,10 +6,12 @@ import { cn } from "@/lib/utils";
 /**
  * A grid of pixels that reacts to you.
  *
- *  - Move over it: pixels swell and turn ember, then cool down behind the
- *    cursor like a trail.
- *  - Click or tap it: a drop hits the grid. A ring of light spreads outward
- *    with a softer echo behind it, and the pixel you hit stays lit for a while.
+ *  - Move over it: pixels swell and take the accent colour, then cool down
+ *    behind the cursor like a trail.
+ *  - Click or tap anywhere: a drop hits the grid. The pixels light up and a
+ *    circular wave spreads outward from the point, a bright crest at the front
+ *    with a few fading rings trailing behind it, like a drop on still water.
+ *    The pixel you hit stays lit a while longer.
  *  - Left alone, an occasional drop falls by itself (optional).
  *
  * It draws two canvases: a static layer of resting dots, and a live layer
@@ -18,6 +20,9 @@ import { cn } from "@/lib/utils";
  * With reduced motion there are no waves and no trails: hovering lights the
  * pixel under the cursor, and a click lights a block that stays until the next
  * click.
+ *
+ * With `fixed` it covers the viewport behind the whole page. Clicks are heard
+ * on the window, so the canvas never blocks anything.
  */
 
 type Props = {
@@ -27,6 +32,8 @@ type Props = {
   autoDrops?: boolean;
   /** "mono" lights pixels in the page's text colour instead of the accent. */
   tone?: "default" | "mono";
+  /** Cover the viewport behind the page instead of filling the parent. */
+  fixed?: boolean;
   className?: string;
 };
 
@@ -34,10 +41,32 @@ type RGB = [number, number, number];
 type Ripple = { x: number; y: number; t0: number };
 
 const REST = 2; // resting pixel size
-const RING_SPEED = 430; // px per second
-const RING_WIDTH = 34;
-const RING_LIFE = 2.3; // seconds
+const WAVE_SPEED = 520; // px per second
+const WAVE_LIFE = 3.4; // seconds until a drop has fully died away
+const FRONT = 24; // width of the leading crest
+const RING_GAP = 52; // distance between the rings behind the crest
+const TAIL = 170; // how far behind the crest the rings reach
+const MAX_DROPS = 8;
 const HOVER_RADIUS = 92;
+
+/**
+ * Brightness (0..1) of one drop at distance `d` from where it landed, `age`
+ * seconds after it landed. Right at the front there is a sharp crest. Behind
+ * it the surface rises and falls in rings that get weaker with distance from
+ * the crest. The whole thing thins out as it spreads and as it ages.
+ */
+function dropWave(d: number, age: number): number {
+  const radius = age * WAVE_SPEED;
+  const behind = radius - d; // > 0 once the crest has passed this pixel
+  if (behind < -FRONT * 2.5 || behind > TAIL * 4) return 0;
+  const strength =
+    Math.pow(Math.max(0, 1 - age / WAVE_LIFE), 1.4) / Math.sqrt(1 + radius / 240);
+  const shape =
+    behind < 0
+      ? Math.exp(-((behind / FRONT) ** 2))
+      : Math.exp(-behind / TAIL) * (0.5 + 0.5 * Math.cos((behind / RING_GAP) * 2 * Math.PI));
+  return shape * strength * 1.25;
+}
 
 function parseColor(value: string): [number, number, number, number] {
   const c = document.createElement("canvas");
@@ -50,7 +79,13 @@ function parseColor(value: string): [number, number, number, number] {
   return [d[0], d[1], d[2], d[3] / 255];
 }
 
-export function PixelField({ cell = 18, autoDrops = false, tone = "default", className }: Props) {
+export function PixelField({
+  cell = 18,
+  autoDrops = false,
+  tone = "default",
+  fixed = false,
+  className,
+}: Props) {
   const baseRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
 
@@ -61,7 +96,7 @@ export function PixelField({ cell = 18, autoDrops = false, tone = "default", cla
     const bctx = base.getContext("2d")!;
     const lctx = live.getContext("2d")!;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const max = cell - 5; // biggest a lit pixel gets
+    const max = cell - 4; // biggest a lit pixel gets
 
     let w = 0;
     let h = 0;
@@ -135,7 +170,7 @@ export function PixelField({ cell = 18, autoDrops = false, tone = "default", cla
       const r = Math.round(dot[0] + (brand[0] - dot[0]) * mix);
       const g = Math.round(dot[1] + (brand[1] - dot[1]) * mix);
       const b = Math.round(dot[2] + (brand[2] - dot[2]) * mix);
-      const a = Math.min(1, dotAlpha + v * (1 - dotAlpha) * 1.1);
+      const a = Math.min(0.92, dotAlpha + v * (1 - dotAlpha));
       lctx.fillStyle = `rgb(${r} ${g} ${b} / ${a.toFixed(3)})`;
       lctx.fillRect(px(cx - size / 2), px(cy - size / 2), Math.round(size * dpr) / dpr, Math.round(size * dpr) / dpr);
     }
@@ -148,7 +183,7 @@ export function PixelField({ cell = 18, autoDrops = false, tone = "default", cla
       const keepT = Math.exp(-dt / 0.34);
       const keepG = Math.exp(-dt / 1.7);
 
-      ripples = ripples.filter((r) => now - r.t0 < RING_LIFE);
+      ripples = ripples.filter((r) => now - r.t0 < WAVE_LIFE);
       lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       lctx.clearRect(0, 0, w, h);
 
@@ -176,15 +211,9 @@ export function PixelField({ cell = 18, autoDrops = false, tone = "default", cla
 
           let wave = 0;
           for (const r of ripples) {
-            const age = now - r.t0;
-            const radius = age * RING_SPEED;
             const dx = cx - r.x;
             const dy = cy - r.y;
-            const d = Math.sqrt(dx * dx + dy * dy);
-            const fade = Math.pow(1 - age / RING_LIFE, 1.6);
-            const ring = Math.exp(-(((d - radius) / RING_WIDTH) ** 2));
-            const echo = Math.exp(-(((d - radius * 0.6) / (RING_WIDTH * 1.2)) ** 2)) * 0.42;
-            wave = Math.max(wave, (ring + echo) * fade);
+            wave = Math.max(wave, dropWave(Math.sqrt(dx * dx + dy * dy), now - r.t0));
           }
 
           const v = Math.max(trail[k], glow[k], wave);
@@ -227,7 +256,7 @@ export function PixelField({ cell = 18, autoDrops = false, tone = "default", cla
     function addDrop(x: number, y: number) {
       if (reduced) return;
       ripples.push({ x, y, t0: performance.now() / 1000 });
-      if (ripples.length > 6) ripples.shift();
+      if (ripples.length > MAX_DROPS) ripples.shift();
       const i = Math.min(cols - 1, Math.max(0, Math.floor(x / cell)));
       const j = Math.min(rows - 1, Math.max(0, Math.floor(y / cell)));
       for (let dj = -1; dj <= 1; dj++) {
@@ -323,10 +352,13 @@ export function PixelField({ cell = 18, autoDrops = false, tone = "default", cla
       document.removeEventListener("pointerleave", onLeave);
       document.removeEventListener("visibilitychange", wake);
     };
-  }, [cell, autoDrops, tone]);
+  }, [cell, autoDrops, tone, fixed]);
 
   return (
-    <div aria-hidden="true" className={cn("pointer-events-none absolute inset-0", className)}>
+    <div
+      aria-hidden="true"
+      className={cn("pointer-events-none inset-0", fixed ? "fixed -z-10" : "absolute", className)}
+    >
       <canvas ref={baseRef} className="absolute inset-0 size-full" />
       <canvas ref={liveRef} className="absolute inset-0 size-full" />
     </div>
