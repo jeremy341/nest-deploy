@@ -228,6 +228,13 @@
   font-feature-settings: "liga" 0, "clig" 0;
 }
 
+/* Hairline grid; set background-size to the cell size. */
+@utility page-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--foreground) 12%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 12%, transparent) 1px, transparent 1px);
+}
+
 @utility shadow-border {
   box-shadow: var(--ds-shadow-border);
 }

@@ -119,6 +119,8 @@ export function PixelField({
     let drops: ReturnType<typeof setTimeout> | undefined;
 
     const px = (v: number) => Math.round(v * dpr) / dpr;
+    /** In `fixed` mode the grid scrolls with the page, so the cells sit this far up. */
+    const originY = () => (fixed ? -(window.scrollY % cell) : 0);
 
     function readColors() {
       const cs = getComputedStyle(host);
@@ -139,6 +141,7 @@ export function PixelField({
     function paintBase() {
       bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       bctx.clearRect(0, 0, w, h);
+      if (fixed) return; // the page draws its own hairlines, so they cover the whole height
       bctx.fillStyle = `rgb(${dot[0]} ${dot[1]} ${dot[2]} / ${dotAlpha})`;
       const line = 1 / dpr; // one device pixel
       for (let i = 0; i <= cols; i++) bctx.fillRect(px(i * cell), 0, line, h);
@@ -155,7 +158,7 @@ export function PixelField({
         c.height = Math.round(h * dpr);
       }
       cols = Math.ceil(w / cell);
-      rows = Math.ceil(h / cell);
+      rows = Math.ceil(h / cell) + (fixed ? 1 : 0);
       trail = new Float32Array(cols * rows);
       glow = new Float32Array(cols * rows);
       readColors();
@@ -188,8 +191,9 @@ export function PixelField({
 
       let alive = ripples.length > 0 || pointer !== null;
 
+      const oy = originY();
       for (let j = 0; j < rows; j++) {
-        const cy = (j + 0.5) * cell;
+        const cy = (j + 0.5) * cell + oy;
         for (let i = 0; i < cols; i++) {
           const k = j * cols + i;
           const cx = (i + 0.5) * cell;
@@ -230,16 +234,17 @@ export function PixelField({
     function drawStatic() {
       lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       lctx.clearRect(0, 0, w, h);
+      const oy = originY();
       for (let j = 0; j < rows; j++) {
         for (let i = 0; i < cols; i++) {
           const k = j * cols + i;
           let v = glow[k];
           if (pointer) {
             const dx = (i + 0.5) * cell - pointer.x;
-            const dy = (j + 0.5) * cell - pointer.y;
+            const dy = (j + 0.5) * cell + oy - pointer.y;
             if (dx * dx + dy * dy < (cell * 0.75) ** 2) v = 1;
           }
-          if (v > 0) drawLit(v, (i + 0.5) * cell, (j + 0.5) * cell);
+          if (v > 0) drawLit(v, (i + 0.5) * cell, (j + 0.5) * cell + oy);
         }
       }
     }
@@ -257,7 +262,7 @@ export function PixelField({
       ripples.push({ x, y, t0: performance.now() / 1000 });
       if (ripples.length > MAX_DROPS) ripples.shift();
       const i = Math.min(cols - 1, Math.max(0, Math.floor(x / cell)));
-      const j = Math.min(rows - 1, Math.max(0, Math.floor(y / cell)));
+      const j = Math.min(rows - 1, Math.max(0, Math.floor((y - originY()) / cell)));
       for (let dj = -1; dj <= 1; dj++) {
         for (let di = -1; di <= 1; di++) {
           const ii = i + di;
@@ -288,7 +293,7 @@ export function PixelField({
       if (!p.inside) return;
       if (reduced) {
         const i = Math.floor(p.x / cell);
-        const j = Math.floor(p.y / cell);
+        const j = Math.floor((p.y - originY()) / cell);
         if (i >= 0 && j >= 0 && i < cols && j < rows) {
           const k = j * cols + i;
           glow[k] = glow[k] > 0 ? 0 : 1;
@@ -337,6 +342,7 @@ export function PixelField({
     window.addEventListener("pointerdown", onDown, { passive: true });
     document.addEventListener("pointerleave", onLeave);
     document.addEventListener("visibilitychange", wake);
+    if (fixed) window.addEventListener("scroll", wake, { passive: true });
     resize();
     scheduleDrop(true);
 
@@ -350,6 +356,7 @@ export function PixelField({
       window.removeEventListener("pointerdown", onDown);
       document.removeEventListener("pointerleave", onLeave);
       document.removeEventListener("visibilitychange", wake);
+      window.removeEventListener("scroll", wake);
     };
   }, [cell, autoDrops, tone, fixed]);
 
