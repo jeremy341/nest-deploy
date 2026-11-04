@@ -95,10 +95,11 @@ export function PixelField({
     const bctx = base.getContext("2d")!;
     const lctx = live.getContext("2d")!;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    // Resting pixels are boxes that almost fill their cell; lit ones swell to fill it.
-    const gap = Math.max(2, Math.round(cell / 8));
-    const REST = cell - gap * 2;
-    const max = cell - Math.max(1, Math.round(gap / 2));
+    // The resting grid is hairlines between the cells. A lit pixel is a box that
+    // swells from the middle of its cell until it fills it, inside the lines.
+    const REST = Math.round(cell * 0.5);
+    const max = cell - 2;
+    const litCap = tone === "mono" ? 0.5 : 0.92;
 
     let w = 0;
     let h = 0;
@@ -124,14 +125,14 @@ export function PixelField({
       if (tone === "mono") {
         const ink = parseColor(cs.color);
         dot = [ink[0], ink[1], ink[2]];
-        dotAlpha = 0.045;
+        dotAlpha = 0.12; // the hairlines
         brand = [ink[0], ink[1], ink[2]];
         return;
       }
       const d = parseColor(cs.getPropertyValue("--pixel-dot") || "rgb(128 128 128 / 0.2)");
       const b = parseColor(cs.getPropertyValue("--brand") || "#ff5a1f");
       dot = [d[0], d[1], d[2]];
-      dotAlpha = Math.min(d[3], 0.045); // boxes are large, so keep them faint
+      dotAlpha = Math.min(d[3], 0.12); // the hairlines
       brand = [b[0], b[1], b[2]];
     }
 
@@ -139,13 +140,9 @@ export function PixelField({
       bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       bctx.clearRect(0, 0, w, h);
       bctx.fillStyle = `rgb(${dot[0]} ${dot[1]} ${dot[2]} / ${dotAlpha})`;
-      for (let j = 0; j < rows; j++) {
-        for (let i = 0; i < cols; i++) {
-          const cx = (i + 0.5) * cell;
-          const cy = (j + 0.5) * cell;
-          bctx.fillRect(px(cx - REST / 2), px(cy - REST / 2), REST, REST);
-        }
-      }
+      const line = 1 / dpr; // one device pixel
+      for (let i = 0; i <= cols; i++) bctx.fillRect(px(i * cell), 0, line, h);
+      for (let j = 0; j <= rows; j++) bctx.fillRect(0, px(j * cell), w, line);
     }
 
     function resize() {
@@ -172,7 +169,7 @@ export function PixelField({
       const r = Math.round(dot[0] + (brand[0] - dot[0]) * mix);
       const g = Math.round(dot[1] + (brand[1] - dot[1]) * mix);
       const b = Math.round(dot[2] + (brand[2] - dot[2]) * mix);
-      const a = Math.min(0.92, dotAlpha + v * (1 - dotAlpha));
+      const a = Math.min(litCap, v * litCap);
       lctx.fillStyle = `rgb(${r} ${g} ${b} / ${a.toFixed(3)})`;
       lctx.fillRect(px(cx - size / 2), px(cy - size / 2), Math.round(size * dpr) / dpr, Math.round(size * dpr) / dpr);
     }

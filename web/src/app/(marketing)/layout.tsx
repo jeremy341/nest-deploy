@@ -19,7 +19,7 @@ const small =
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className={`${pixel.variable} flex flex-1 flex-col`}>
-      <PixelField fixed autoDrops cell={30} />
+      <PixelField fixed autoDrops tone="mono" cell={30} />
       <a
         href="#top"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:shadow-menu"
