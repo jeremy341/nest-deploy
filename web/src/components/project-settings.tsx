@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { PencilSimpleIcon, TrashIcon } from "@phosphor-icons/react";
 import { api } from "@/components/api";
 import { Swap } from "@/components/motion/swap";
-import { DeployHookCard, NotificationsCard, StatusPageCard } from "@/components/project-automation";
+import { AlertsCard, DeployHookCard, NotificationsCard, StatusPageCard } from "@/components/project-automation";
 import { PageHeader } from "@/components/page-header";
+import { buildBody, ProjectBuildFields, toBuildForm, type BuildForm } from "@/components/project-build-fields";
 import { Card, Label } from "@/components/settings-ui";
 import { SettingsNav } from "@/components/settings-nav";
 import { Alert } from "@/components/ui/alert";
@@ -36,6 +37,8 @@ export function ProjectSettings({
     healthPath: project.healthPath,
     autoDeploy: project.autoDeploy,
   });
+  // Runtime, install, build, output and root directory load after the page does.
+  const [build, setBuild] = useState<BuildForm | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -52,6 +55,7 @@ export function ProjectSettings({
           productionBranch: form.productionBranch.trim(),
           healthPath: form.healthPath.trim() || "/",
           autoDeploy: form.autoDeploy,
+          ...(build ? buildBody(build) : {}),
         },
       });
       setSaveMsg({ ok: true, text: "Saved. Changes apply to the next deployment." });
@@ -202,6 +206,16 @@ export function ProjectSettings({
                   className="font-mono"
                 />
               </div>
+              <ProjectBuildFields
+                projectId={project.id}
+                build={build}
+                onLoad={setBuild}
+                onChange={setBuild}
+                onCopy={(s) => {
+                  setBuild(toBuildForm(s));
+                  setForm((f) => ({ ...f, startCommand: s.startCommand ?? "", healthPath: s.healthPath }));
+                }}
+              />
               <div>
                 <Label htmlFor="ps-health">Health check path</Label>
                 <Input
@@ -320,6 +334,8 @@ export function ProjectSettings({
           <DeployHookCard project={project} />
 
           <NotificationsCard project={project} />
+
+          <AlertsCard project={project} />
 
           <StatusPageCard project={project} />
 

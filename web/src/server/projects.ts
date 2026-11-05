@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { audit } from "@/server/audit";
+import { pickCloneSettings, type CloneSettings } from "@/server/clone-settings";
 import { newId, open, seal } from "@/server/crypto";
 import { getDb, schema } from "@/server/db";
 import { RUNTIMES } from "@/server/db/schema";
@@ -488,4 +489,44 @@ export async function deleteProjectRecords(userId: string, projectId: string) {
   const db = await getDb();
   await db.delete(schema.projects).where(eq(schema.projects.id, project.id));
   await audit(userId, "project.delete", null, { name: project.name });
+}
+
+// ------------------------------------------------------------ clone settings
+
+/** A project's own build and run settings (the allow-listed fields only). */
+export async function getBuildSettings(userId: string, projectId: string): Promise<CloneSettings> {
+  return pickCloneSettings(await assertOwned(userId, projectId));
+}
+
+/** Other projects on the same server that settings can be copied from. */
+export async function listCloneSources(userId: string, projectId: string) {
+  const project = await assertOwned(userId, projectId);
+  const db = await getDb();
+  const rows = await db
+    .select({ id: schema.projects.id, name: schema.projects.name, runtime: schema.projects.runtime })
+    .from(schema.projects)
+    .where(and(eq(schema.projects.userId, userId), eq(schema.projects.serverId, project.serverId)))
+    .orderBy(schema.projects.name);
+  return rows.filter((r) => r.id !== project.id);
+}
+
+/**
+ * The build and run settings of another project on the same server, for the
+ * settings form to show. Nothing is written: the caller saves through the
+ * normal update, after the user has reviewed the values.
+ */
+export async function getCloneSettings(
+  userId: string,
+  projectId: string,
+  sourceId: string
+): Promise<CloneSettings> {
+  const project = await assertOwned(userId, projectId);
+  const source = await assertOwned(userId, sourceId);
+  if (source.id === project.id) {
+    throw new HttpError(400, "Pick a different project to copy from.", "validation");
+  }
+  if (source.serverId !== project.serverId) {
+    throw new HttpError(400, "You can only copy from a project on the same server.", "validation");
+  }
+  return pickCloneSettings(source);
 }

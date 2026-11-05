@@ -12,6 +12,7 @@ import {
 } from "@phosphor-icons/react";
 import { api } from "@/components/api";
 import { CopyField } from "@/components/copy-field";
+import { DomainAppCheck, type AppCheckResult } from "@/components/domain-app-check";
 import { Stagger } from "@/components/motion/stagger";
 import { Swap } from "@/components/motion/swap";
 import { StatusIndicator } from "@/components/status-dot";
@@ -65,6 +66,7 @@ export function DomainsView({
   const [instructions, setInstructions] = useState<{ domain: string; port: number; data: Instructions } | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [checking, setChecking] = useState<string | null>(null);
+  const [appResults, setAppResults] = useState<Record<string, AppCheckResult>>({});
   const [editId, setEditId] = useState<string | null>(null);
   const [editProject, setEditProject] = useState("");
   const [editPort, setEditPort] = useState("");
@@ -110,9 +112,12 @@ export function DomainsView({
   async function check(id: string) {
     setChecking(id);
     try {
-      const r = await api<{ status: string; reason: string | null }>(`/api/domains/${id}/verify`, {
-        method: "POST",
-      });
+      const r = await api<{ status: string; reason: string | null; app?: AppCheckResult }>(
+        `/api/domains/${id}/verify`,
+        { method: "POST" }
+      );
+      const app = r.app;
+      if (app) setAppResults((a) => ({ ...a, [id]: app }));
       setNotes((n) => ({ ...n, [id]: r.reason ?? "" }));
       router.refresh();
     } catch (err) {
@@ -302,6 +307,9 @@ export function DomainsView({
                       <Swap value={notes[d.id]}>{notes[d.id]}</Swap>
                     </p>
                   ) : null}
+                  <div role="status" aria-label={`App check for ${d.domain}`}>
+                    <DomainAppCheck result={appResults[d.id]} />
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="mr-1 text-label">
@@ -316,7 +324,7 @@ export function DomainsView({
                     onClick={() => void check(d.id)}
                   >
                     <ArrowsClockwiseIcon className={cn(checking === d.id && "animate-spin")} />
-                    Check
+                    {checking === d.id ? "Checking…" : "Check"}
                   </Button>
                   <Button
                     variant="ghost"

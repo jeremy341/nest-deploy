@@ -3,6 +3,7 @@ import { isIP } from "node:net";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { audit } from "@/server/audit";
+import { runAppCheck, type AppCheckReport, type Probe } from "@/server/app-check";
 import { newId } from "@/server/crypto";
 import { getDb, schema } from "@/server/db";
 import { HttpError, notFound } from "@/server/http";
@@ -223,4 +224,47 @@ export async function verifyDomain(
     .set({ status, lastCheckedAt: new Date() })
     .where(eq(schema.domains.id, row.id));
   return { status, reason };
+}
+
+export type DomainAppCheck =
+  | ({ skipped: false } & AppCheckReport)
+  | { skipped: true; reason: string; certificateVerified: false; certificateLabel: string };
+
+/**
+ * Ask the app itself: request a domain the user registered over HTTPS and
+ * report the status code. Only runs for a recorded domain owned by the user,
+ * only for names that resolve to public addresses (see net-guard), and only
+ * once DNS already points at Nest.
+ */
+export async function checkDomainApp(
+  userId: string,
+  domainId: string,
+  dnsStatus: "valid" | "invalid",
+  probe?: Probe
+): Promise<DomainAppCheck> {
+  const db = await getDb();
+  const row = await db
+    .select()
+    .from(schema.domains)
+    .where(and(eq(schema.domains.id, domainId), eq(schema.domains.userId, userId)))
+    .get();
+  if (!row) throw notFound("Domain not found");
+  if (dnsStatus !== "valid") {
+    return {
+      skipped: true,
+      reason: "The app check runs once DNS points at Nest.",
+      certificateVerified: false,
+      certificateLabel: "Certificate not verified yet",
+    };
+  }
+  let healthPath: string | null = null;
+  if (row.projectId) {
+    const project = await db
+      .select({ healthPath: schema.projects.healthPath })
+      .from(schema.projects)
+      .where(and(eq(schema.projects.id, row.projectId), eq(schema.projects.userId, userId)))
+      .get();
+    healthPath = project?.healthPath ?? null;
+  }
+  return { skipped: false, ...(await runAppCheck(row.domain, healthPath, probe)) };
 }
