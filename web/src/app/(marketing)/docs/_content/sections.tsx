@@ -447,6 +447,76 @@ export const CONTENT: Record<string, () => ReactNode> = {
         The figures come from the five-minute checks, so a very short outage can be missed. Until checks have
         run, the page says there is no data yet instead of showing a percentage.
       </P>
+      <P>
+        Under the percentage is a strip with one square for each of the last 30 days, in UTC. Green means the app
+        answered all day. Amber means it was down for part of the day. Red means it was down for more than half of
+        it. Grey means no checks had run yet. Hover a square, or use a screen reader, to see the minutes.
+      </P>
+    </Section>
+  ),
+
+  api: () => (
+    <Section
+      id="api"
+      intro="Access tokens let a script or an AI agent act for you, with only the permissions you pick. Everything here is also in the OpenAPI description."
+    >
+      <H3 id="api-tokens" />
+      <P>
+        Open Developer in the sidebar and press <B>Create token</B>. The form opens in a dialog. Give the token a
+        name you will recognise later, tick the permissions it needs, and pick how long it lasts: 7, 30, 90 or 365
+        days. The secret is shown once, so copy it before you close the dialog. You can have up to 25 active tokens.
+      </P>
+      <P>
+        The two quick picks save time. <B>Read only</B> ticks every permission that only reads. <B>Deploy</B> ticks
+        what a deploy script needs: reading projects, deployments and logs, and starting deployments. Clear the list
+        and tick by hand for anything else.
+      </P>
+      <H3 id="api-scopes" />
+      <P>The permissions are grouped by the part of Nest Deploy they touch:</P>
+      <List>
+        <li>
+          <B>Projects, deployments and logs.</B> Read them, start or redeploy, roll back and cancel. Starting a build
+          is marked, because it runs code on your container.
+        </li>
+        <li>
+          <B>Environment variables.</B> Read the names, or set and remove them. The values are never sent back.
+        </li>
+        <li>
+          <B>Domains, alerts and notifications, analytics, resources and activity.</B> Read or change, each on its
+          own permission.
+        </li>
+        <li>
+          <B>Container.</B> Read the servers and what is on them. Nothing on the container is changed by this
+          permission.
+        </li>
+        <li>
+          <B>Files and terminal.</B> Only useful once you have switched them on for a server. See the next part.
+        </li>
+      </List>
+      <H3 id="api-limits" />
+      <P>
+        Terminal and file changes are off until you switch them on for a server, and switching them on asks you to
+        sign in with Hack Club again. A token can use them only while that switch is on. A token that holds either
+        permission expires within 7 days, whatever length you picked, and the form shows that as you tick it.
+      </P>
+      <P>
+        Some things stay with you in the browser. A token cannot remove leftovers on the container, change the
+        container permissions, or manage your account, sessions or other tokens.
+      </P>
+      <H3 id="api-mcp" />
+      <P>
+        The API is under <C>/api/v1</C> and takes the token as a bearer header. The description of every call is at
+        <C>/api/v1/openapi.json</C>. AI agents can instead connect to the MCP endpoint at <C>/api/mcp</C>, which
+        offers the same calls as tools.
+      </P>
+      <CodeBlock
+        label="Terminal"
+        code={`curl -H "Authorization: Bearer ndp_..." https://your-nest-deploy/api/v1/projects`}
+      />
+      <P>
+        Deploys, redeploys, rollbacks, cancels and file or terminal actions are recorded in Activity with the token
+        that made them, so you can tell a script&apos;s change from your own.
+      </P>
     </Section>
   ),
 

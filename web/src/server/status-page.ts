@@ -70,6 +70,45 @@ export function uptimePercent(incidents: Incident[], windowStart: Date, now: Dat
   return Math.max(0, Math.min(100, (1 - down / total) * 100));
 }
 
+/** One day in the strip. `none` means no checks had run yet on that day. */
+export type StripDay = {
+  /** UTC date, YYYY-MM-DD. */
+  day: string;
+  state: "up" | "partial" | "down" | "none";
+  /** Whole minutes the app was not answering that day. */
+  downMinutes: number;
+};
+
+const DAY_MS = 86_400_000;
+
+/**
+ * One entry per UTC day, oldest first, ending with today. A day is `partial`
+ * when the app was down for part of it, and `down` when it was down for more
+ * than half. Pure, so it is easy to test.
+ */
+export function dailyStrip(incidents: Incident[], now: Date, days = 30, hasData = true): StripDay[] {
+  const todayStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const out: StripDay[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const start = todayStart - i * DAY_MS;
+    const end = Math.min(start + DAY_MS, now.getTime());
+    const day = new Date(start).toISOString().slice(0, 10);
+    if (!hasData) {
+      out.push({ day, state: "none", downMinutes: 0 });
+      continue;
+    }
+    let down = 0;
+    for (const inc of incidents) {
+      const from = Math.max(inc.from.getTime(), start);
+      const to = Math.min((inc.to ?? now).getTime(), end);
+      if (to > from) down += to - from;
+    }
+    const state = down === 0 ? "up" : down * 2 > end - start ? "down" : "partial";
+    out.push({ day, state, downMinutes: Math.round(down / 60_000) });
+  }
+  return out;
+}
+
 export type PublicStatus = {
   name: string;
   state: "up" | "down" | "unknown";
@@ -77,6 +116,7 @@ export type PublicStatus = {
   uptime: number | null;
   windowDays: number;
   incidents: Incident[];
+  days: StripDay[];
 };
 
 export async function publicStatus(key: string, now = new Date()): Promise<PublicStatus | null> {
@@ -114,5 +154,6 @@ export async function publicStatus(key: string, now = new Date()): Promise<Publi
     uptime: hasData ? uptimePercent(incidents, windowStart, now) : null,
     windowDays,
     incidents: incidents.slice(-10).reverse(),
+    days: dailyStrip(incidents, now, windowDays, hasData),
   };
 }

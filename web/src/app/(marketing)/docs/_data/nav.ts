@@ -68,6 +68,16 @@ export const DOCS_NAV: DocsGroup[] = [
       },
       { id: "hooks", title: "Deploy hooks", subsections: [] },
       { id: "notifications", title: "Notifications", subsections: [] },
+      {
+        id: "api",
+        title: "Access tokens and the API",
+        subsections: [
+          { id: "api-tokens", title: "Making a token" },
+          { id: "api-scopes", title: "What a token can do" },
+          { id: "api-limits", title: "Terminal, files and the 7-day rule" },
+          { id: "api-mcp", title: "The API and agents" },
+        ],
+      },
     ],
   },
   {

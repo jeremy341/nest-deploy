@@ -123,8 +123,11 @@ describe("status page", () => {
     expect(status?.state).toBe("unknown");
     expect(status?.uptime).toBeNull();
     expect(Object.keys(status ?? {}).sort()).toEqual(
-      ["incidents", "name", "since", "state", "uptime", "windowDays"].sort()
+      ["days", "incidents", "name", "since", "state", "uptime", "windowDays"].sort()
     );
+    // Each day in the strip is only a date, a state and a count of minutes.
+    expect(status?.days.length).toBe(30);
+    expect(Object.keys(status?.days[0] ?? {}).sort()).toEqual(["day", "downMinutes", "state"]);
   });
 });
 

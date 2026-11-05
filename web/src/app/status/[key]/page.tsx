@@ -7,7 +7,7 @@ import { StatusIndicator } from "@/components/status-dot";
 import { LoadingRegion, Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { pixel } from "@/lib/fonts";
 import { timeAgo } from "@/lib/status";
-import { publicStatus, type Incident } from "@/server/status-page";
+import { publicStatus, type Incident, type StripDay } from "@/server/status-page";
 import { cn } from "@/lib/utils";
 
 type Props = { params: Promise<{ key: string }> };
@@ -23,6 +23,31 @@ const HEADLINE = {
   down: { text: "Not responding", detail: "The app has stopped answering.", glyph: "bg-[var(--status-error)]" },
   unknown: { text: "No data yet", detail: "Checks have not run for this app yet.", glyph: "bg-[var(--ds-gray-600)]" },
 } as const;
+
+const STRIP_TONE = {
+  up: "bg-ready",
+  partial: "bg-[var(--status-building)]",
+  down: "bg-[var(--status-error)]",
+  none: "bg-muted",
+} as const;
+
+function dayLabel(day: string): string {
+  return new Date(`${day}T00:00:00Z`).toLocaleDateString("en", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+function dayTitle(d: StripDay): string {
+  const label = dayLabel(d.day);
+  if (d.state === "none") return `${label}: no checks yet`;
+  if (d.state === "up") return `${label}: answering all day`;
+  if (d.state === "partial") return `${label}: not answering for ${d.downMinutes} min`;
+  return `${label}: not answering for most of the day, ${d.downMinutes} min`;
+}
+
+/** The strip in words, for screen readers: counts of each kind of day. */
+function stripSummary(days: StripDay[], windowDays: number): string {
+  const count = (s: StripDay["state"]) => days.filter((d) => d.state === s).length;
+  return `Last ${windowDays} days: ${count("up")} answering all day, ${count("partial")} with an outage, ${count("down")} mostly down.`;
+}
 
 function lasted(i: Incident): string {
   if (!i.to) return "ongoing";
@@ -64,6 +89,19 @@ async function Content({ params }: Props) {
             </span>
             <span>answering over the last {status.windowDays} days, from checks every few minutes.</span>
           </p>
+        ) : null}
+        {status.uptime !== null && status.days.length > 0 ? (
+          <div className="mt-4">
+            <div role="img" aria-label={stripSummary(status.days, status.windowDays)} className="flex h-6 gap-[3px]">
+              {status.days.map((d) => (
+                <span key={d.day} title={dayTitle(d)} className={cn("min-w-0 flex-1", STRIP_TONE[d.state])} />
+              ))}
+            </div>
+            <div className="tabular mt-2 flex justify-between text-caption text-muted-foreground">
+              <span>{dayLabel(status.days[0].day)}</span>
+              <span>Today</span>
+            </div>
+          </div>
         ) : null}
       </section>
 
