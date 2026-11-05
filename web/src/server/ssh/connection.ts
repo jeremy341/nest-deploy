@@ -2,6 +2,7 @@ import { createReadStream } from "node:fs";
 import type { Readable } from "node:stream";
 import { Client, type ConnectConfig } from "ssh2";
 import { fingerprintOfBlob } from "@/server/ssh/keys";
+import { openShellOnClient, type ShellHandle, type ShellOptions } from "@/server/ssh/shell";
 
 export class SshError extends Error {
   constructor(
@@ -250,6 +251,18 @@ export class NestSession {
         `Could not write ${remotePath}: ${result.stderr.trim()}`,
         "exec"
       );
+    }
+  }
+
+  /**
+   * Open an interactive shell (a PTY) that starts in `opts.cwd`. The handle
+   * reports when the shell ends or this connection drops.
+   */
+  async openShell(opts: ShellOptions): Promise<ShellHandle> {
+    try {
+      return await openShellOnClient(this.client, opts);
+    } catch (err) {
+      throw friendlyConnectError(err);
     }
   }
 
