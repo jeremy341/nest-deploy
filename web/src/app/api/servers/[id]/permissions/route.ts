@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { authed, handle, ok, readJson } from "@/server/http";
+import { HttpError, authed, handle, ok, readJson } from "@/server/http";
 import { getPermissions, setPermissions } from "@/server/permissions";
 import { terminals } from "@/server/terminal";
+import { REAUTH_WINDOW_MS, SESSION_COOKIE, isFreshAuth } from "@/server/auth/session";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -31,6 +32,15 @@ export const PUT = handle<Ctx>(async (req, { params }) => {
   const { id } = await params;
   const changes = await readJson(req, patch);
   const before = await getPermissions(user.id, id);
+  // Turning on the terminal or file changes needs a Hack Club sign-in in the last few minutes.
+  const turningOn = (changes.terminal === true && !before.terminal) || (changes.fileWrites === true && !before.fileWrites);
+  if (turningOn && !(await isFreshAuth(req.cookies.get(SESSION_COOKIE)?.value))) {
+    throw new HttpError(
+      403,
+      `Confirm with Hack Club first. Turning this on needs a sign-in in the last ${Math.round(REAUTH_WINDOW_MS / 60000)} minutes.`,
+      "reauth_required",
+    );
+  }
   const permissions = await setPermissions(user.id, id, changes);
   if (before.terminal && !permissions.terminal) {
     await terminals().closeAllForUser(user.id, "disabled", { serverId: id });

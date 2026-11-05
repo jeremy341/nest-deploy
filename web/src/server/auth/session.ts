@@ -66,6 +66,7 @@ export async function createSession(
     expiresAt,
     createdAt: new Date(),
     userAgent: userAgent?.slice(0, 200) ?? null,
+    freshAuthAt: new Date(),
   });
   // Opportunistic cleanup keeps the table small without a cron job.
   await db.delete(schema.sessions).where(lt(schema.sessions.expiresAt, new Date()));
@@ -110,4 +111,28 @@ export function sessionCookieOptions(expires: Date) {
     path: "/",
     expires,
   };
+}
+
+/** How long a Hack Club sign-in counts as "just now" for sensitive switches. */
+export const REAUTH_WINDOW_MS = 5 * 60 * 1000;
+
+/** Record a fresh Hack Club sign-in on this session. Only ever for the session's own user. */
+export async function markFreshAuth(token: string, now = new Date()): Promise<void> {
+  const db = await getDb();
+  await db
+    .update(schema.sessions)
+    .set({ freshAuthAt: now })
+    .where(eq(schema.sessions.id, sha256Hex(token)));
+}
+
+/** True when this session confirmed with Hack Club within the window. */
+export async function isFreshAuth(token: string | undefined, now = Date.now()): Promise<boolean> {
+  if (!token) return false;
+  const db = await getDb();
+  const row = await db
+    .select({ freshAuthAt: schema.sessions.freshAuthAt })
+    .from(schema.sessions)
+    .where(eq(schema.sessions.id, sha256Hex(token)))
+    .get();
+  return !!row?.freshAuthAt && now - row.freshAuthAt.getTime() <= REAUTH_WINDOW_MS;
 }

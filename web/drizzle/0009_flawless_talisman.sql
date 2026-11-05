@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `fresh_auth_at` integer;

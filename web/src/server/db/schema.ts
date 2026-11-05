@@ -54,6 +54,8 @@ export const sessions = sqliteTable(
     expiresAt: ts("expires_at").notNull(),
     createdAt: ts("created_at").notNull(),
     userAgent: text("user_agent"),
+    /** When this session last signed in with Hack Club. Sensitive switches need this to be recent. */
+    freshAuthAt: ts("fresh_auth_at"),
   },
   (t) => [index("sessions_user_idx").on(t.userId)]
 );

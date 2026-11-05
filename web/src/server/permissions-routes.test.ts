@@ -8,7 +8,7 @@ import { migrate } from "drizzle-orm/libsql/migrator";
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { deleteAccount, revokeOtherSessions, revokeSession } from "@/server/account";
-import { SESSION_COOKIE, createSession, upsertUser, userForSessionToken } from "@/server/auth/session";
+import { SESSION_COOKIE, createSession, markFreshAuth, upsertUser, userForSessionToken } from "@/server/auth/session";
 import { sha256Hex } from "@/server/crypto";
 import { schema } from "@/server/db";
 import { setPermissions } from "@/server/permissions";
@@ -84,6 +84,15 @@ function json(path: string, method: string, body?: unknown, headers: Record<stri
     headers: { "content-type": "application/json", origin: ORIGIN, ...headers },
     body: body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body),
   });
+}
+/**
+ * Turning the terminal or file changes on needs a Hack Club sign-in in the last few
+ * minutes. This signs the owner in with a freshly confirmed session.
+ */
+async function turnOn(body: unknown, id: string) {
+  const s = await createSession(sam.id, "confirmed browser");
+  await markFreshAuth(s.token);
+  return putPermissionsRoute(json("/x", "PUT", body, { cookie: `${SESSION_COOKIE}=${s.token}` }), idCtx(id));
 }
 const idCtx = (id: string) => ({ params: Promise.resolve({ id }) });
 const termCtx = (id: string, sessionId = "") => ({ params: Promise.resolve({ id, sessionId }) });
@@ -258,7 +267,7 @@ describe("permissions API", () => {
   });
 
   it("lets the signed-in owner turn file changes on with a plain request (the typed confirmation is a UI guard), and nobody else", async () => {
-    const on = await putPermissionsRoute(json("/x", "PUT", { fileWrites: true }), idCtx(samServer));
+    const on = await turnOn({ fileWrites: true }, samServer);
     expect(on.status).toBe(200);
     expect((await bodyOf(on)).permissions?.fileWrites).toBe(true);
     vi.mocked(getCurrentUser).mockResolvedValue(kim as never);
@@ -314,7 +323,7 @@ describe("permissions API", () => {
   });
 
   it("round-trips: turns a switch on, leaves the others alone, and turns it back off", async () => {
-    const on = await putPermissionsRoute(json("/x", "PUT", { terminal: true }), idCtx(samServer));
+    const on = await turnOn({ terminal: true }, samServer);
     expect(on.status).toBe(200);
     expect(await on.json()).toEqual({ permissions: { terminal: true, fileWrites: true, orphanRemoval: true } });
     const both = await putPermissionsRoute(
@@ -324,10 +333,7 @@ describe("permissions API", () => {
     expect((await bodyOf(both)).permissions).toEqual({ terminal: true, fileWrites: false, orphanRemoval: false });
     const got = await getPermissionsRoute(json("/x", "GET"), idCtx(samServer));
     expect((await bodyOf(got)).permissions).toEqual({ terminal: true, fileWrites: false, orphanRemoval: false });
-    const off = await putPermissionsRoute(
-      json("/x", "PUT", { terminal: false, fileWrites: true, orphanRemoval: true }),
-      idCtx(samServer)
-    );
+    const off = await turnOn({ terminal: false, fileWrites: true, orphanRemoval: true }, samServer);
     expect((await bodyOf(off)).permissions).toEqual({ terminal: false, fileWrites: true, orphanRemoval: true });
     // Another server of the same user was not touched.
     const other = await getPermissionsRoute(json("/x", "GET"), idCtx(samOtherServer));
@@ -335,7 +341,7 @@ describe("permissions API", () => {
   });
 
   it("audits a change by switch name only", async () => {
-    await putPermissionsRoute(json("/x", "PUT", { terminal: true }), idCtx(samServer));
+    await turnOn({ terminal: true }, samServer);
     const rows = (await ctx.db.select().from(schema.auditLog).where(eq(schema.auditLog.userId, sam.id))).filter(
       (r) => r.action === "container.permissions"
     );
@@ -344,12 +350,12 @@ describe("permissions API", () => {
   });
 
   it("closes the owner's open terminals on that server, and only those, when the terminal is turned off", async () => {
-    await putPermissionsRoute(json("/x", "PUT", { terminal: true }), idCtx(samServer));
-    await putPermissionsRoute(json("/x", "PUT", { terminal: true }), idCtx(samOtherServer));
+    await turnOn({ terminal: true }, samServer);
+    await turnOn({ terminal: true }, samOtherServer);
     expect((await openTerminal(json("/x", "POST", {}), termCtx(samProject))).status).toBe(201);
     expect((await openTerminal(json("/x", "POST", {}), termCtx(samOtherProject))).status).toBe(201);
     vi.mocked(getCurrentUser).mockResolvedValue(kim as never);
-    await putPermissionsRoute(json("/x", "PUT", { terminal: true }), idCtx(kimServer));
+    await turnOn({ terminal: true }, kimServer);
     expect((await openTerminal(json("/x", "POST", {}), termCtx(kimProject))).status).toBe(201);
     vi.mocked(getCurrentUser).mockResolvedValue(sam as never);
     expect(manager.size).toBe(3);
@@ -366,9 +372,9 @@ describe("permissions API", () => {
   });
 
   it("does not close terminals when the terminal switch stays on", async () => {
-    await putPermissionsRoute(json("/x", "PUT", { terminal: true }), idCtx(samServer));
+    await turnOn({ terminal: true }, samServer);
     await openTerminal(json("/x", "POST", {}), termCtx(samProject));
-    await putPermissionsRoute(json("/x", "PUT", { terminal: true, fileWrites: false }), idCtx(samServer));
+    await turnOn({ terminal: true, fileWrites: false }, samServer);
     expect(manager.size).toBe(1);
   });
 });
@@ -622,5 +628,43 @@ describe("terminals end when the account signs out", () => {
     expect(manager.active(lee.id, leeProject)).toBeNull();
     expect(manager.active(kim.id, kimProject)).not.toBeNull();
     expect(manager.size).toBe(1);
+  });
+});
+
+describe("turning sensitive switches on needs a recent Hack Club sign-in", () => {
+  // A fresh server, so the switches start off and the request really turns them on.
+  async function freshServer() {
+    return (await createServer(sam.id, `sam-reauth-${Math.random().toString(36).slice(2, 7)}`)).id;
+  }
+  it("refuses a turn-on from a session that confirmed more than 5 minutes ago, and still allows turning off", async () => {
+    const target = await freshServer();
+    const s = await createSession(sam.id, "stale browser");
+    await ctx.db
+      .update(schema.sessions)
+      .set({ freshAuthAt: new Date(Date.now() - 6 * 60_000) })
+      .where(eq(schema.sessions.id, sha256Hex(s.token)));
+    const cookie = { cookie: `${SESSION_COOKIE}=${s.token}` };
+
+    const refused = await putPermissionsRoute(
+      json("/x", "PUT", { fileWrites: true }, cookie),
+      idCtx(target)
+    );
+    expect(refused.status).toBe(403);
+    expect((await bodyOf(refused)).error?.code).toBe("reauth_required");
+
+    const off = await putPermissionsRoute(json("/x", "PUT", { terminal: false }, cookie), idCtx(target));
+    expect(off.status).toBe(200);
+  });
+
+  it("a session with no confirmation at all is refused too", async () => {
+    const target = await freshServer();
+    const s = await createSession(sam.id, "never confirmed");
+    // Logging in counts as a confirmation, so clear it to model a session that never confirmed.
+    await ctx.db.update(schema.sessions).set({ freshAuthAt: null }).where(eq(schema.sessions.id, sha256Hex(s.token)));
+    const res = await putPermissionsRoute(
+      json("/x", "PUT", { terminal: true }, { cookie: `${SESSION_COOKIE}=${s.token}` }),
+      idCtx(target)
+    );
+    expect(res.status).toBe(403);
   });
 });

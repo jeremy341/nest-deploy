@@ -58,6 +58,7 @@ export const LABELS: Record<string, string> = {
   "token.create": "Created an access token",
   "token.revoke": "Revoked an access token",
   "token.update": "Edited an access token",
+  "auth.reauth": "Confirmed sign-in with Hack Club",
   "deploy.trigger": "Started a deployment of",
   "file.write": "Saved a file on",
   "file.mkdir": "Created a folder on",

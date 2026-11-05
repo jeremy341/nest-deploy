@@ -1,33 +1,21 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { Switch } from "@base-ui/react/switch";
 import { api } from "@/components/api";
 import { Alert } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogClose,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { PixelLoader } from "@/components/ui/pixel-loader";
 import { toast } from "@/components/ui/toast";
 import {
-  ENABLE_COPY,
   PERMISSION_DESCRIPTIONS,
   PERMISSION_KEYS,
   PERMISSION_LABELS,
   PERMISSION_STATE,
   needsTypedConfirm,
   normalizePermissions,
-  typedConfirmFor,
   type ContainerPermissions,
-  type EnableCopy,
   type PermissionKey,
 } from "@/lib/container-permissions";
 import { cn } from "@/lib/utils";
@@ -36,7 +24,7 @@ export type PermissionServer = {
   id: string;
   /** What the person knows it by, for example sam-r.hackclub.app. */
   label: string;
-  /** The Nest username. Typed to confirm turning the terminal or file changes on. */
+  /** Nest username, shown in the card title. */
   nestUsername: string;
   permissions: ContainerPermissions;
 };
@@ -62,7 +50,7 @@ function toastFor(key: PermissionKey, value: boolean, label: string) {
 /**
  * The Account page section: one card per connected server, three switches in
  * each. Every switch saves on its own, straight away. Turning the terminal or
- * file changes on asks you to type the server's Nest username first.
+ * file changes on sends you through a fresh Hack Club sign-in first.
  */
 export function ContainerPermissionsSection({ servers }: { servers: PermissionServer[] }) {
   const [state, setState] = useState<Record<string, ContainerPermissions>>(() =>
@@ -77,7 +65,7 @@ export function ContainerPermissionsSection({ servers }: { servers: PermissionSe
       <p className="mt-1 max-w-[62ch] text-muted-foreground">
         Choose which features can reach each of your containers. A feature that is off is blocked by Nest Deploy
         itself, not only hidden from the page. The terminal and file changes are off until you turn them on, and
-        turning them on asks you to type the server&apos;s Nest username.
+        turning them on asks you to sign in with Hack Club again first.
       </p>
 
       {servers.length === 0 ? (
@@ -167,7 +155,6 @@ function PermissionRow({
   const switchRef = useRef<HTMLElement>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
 
   /** Throws when the save fails, so the caller can show the message where it belongs. */
   async function commit(next: boolean) {
@@ -176,11 +163,35 @@ function PermissionRow({
     toastFor(permKey, next, server.label);
   }
 
+  // Coming back from the Hack Club confirmation: apply the switch that was asked for.
+  const resumed = useRef(false);
+  useEffect(() => {
+    if (resumed.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("turn") !== permKey || params.get("server") !== server.id) return;
+    resumed.current = true;
+    params.delete("turn");
+    params.delete("server");
+    const query = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+    void (async () => {
+      setPending(true);
+      try {
+        await commit(true);
+      } catch (e) {
+        setError(message(e));
+      } finally {
+        setPending(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [permKey, server.id]);
+
   async function change(next: boolean) {
-    // Turning the terminal or file changes on goes through the typed confirmation first.
+    // Turning the terminal or file changes on needs a fresh Hack Club sign-in first.
     if (needsTypedConfirm(permKey) && next) {
-      setError(null);
-      setConfirmOpen(true);
+      const back = `/account?turn=${permKey}&server=${server.id}#container-permissions-heading`;
+      window.location.assign(`/api/auth/reauth?next=${encodeURIComponent(back)}`);
       return;
     }
     setPending(true);
@@ -258,124 +269,6 @@ function PermissionRow({
           <span id={errorId}>{error}</span>
         </Alert>
       ) : null}
-
-      {needsTypedConfirm(permKey) ? (
-        <EnableDialog
-          copy={ENABLE_COPY[permKey]}
-          open={confirmOpen}
-          onOpenChange={setConfirmOpen}
-          serverLabel={server.label}
-          nestUsername={server.nestUsername}
-          finalFocus={switchRef}
-          onConfirm={() => commit(true)}
-        />
-      ) : null}
     </li>
-  );
-}
-
-/**
- * Turning the terminal on gives a root shell, and turning file changes on lets
- * files change the code the app runs, so the switch only moves once the person
- * has typed the server's Nest username. The confirm button stays disabled
- * until it matches (exactly, ignoring spaces at either end).
- */
-function EnableDialog({
-  copy,
-  open,
-  onOpenChange,
-  serverLabel,
-  nestUsername,
-  finalFocus,
-  onConfirm,
-}: {
-  copy: EnableCopy;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  serverLabel: string;
-  nestUsername: string;
-  finalFocus: React.RefObject<HTMLElement | null>;
-  onConfirm: () => Promise<void>;
-}) {
-  const fieldId = useId();
-  const hintId = useId();
-  const [typed, setTyped] = useState("");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const confirm = typedConfirmFor(nestUsername);
-  const ok = confirm.matches(typed);
-
-  function handleOpenChange(next: boolean) {
-    if (!next && pending) return;
-    if (next) {
-      setTyped("");
-      setError(null);
-    }
-    onOpenChange(next);
-  }
-
-  async function submit() {
-    if (!ok || pending) return;
-    setPending(true);
-    setError(null);
-    try {
-      await onConfirm();
-      onOpenChange(false);
-    } catch (e) {
-      setError(message(e));
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return (
-    <AlertDialog open={open} onOpenChange={handleOpenChange}>
-      <AlertDialogContent
-        initialFocus={() => document.getElementById(fieldId) ?? true}
-        finalFocus={finalFocus}
-      >
-        <AlertDialogTitle>{copy.title}</AlertDialogTitle>
-        <AlertDialogDescription>{copy.description(serverLabel)}</AlertDialogDescription>
-        <form
-          className="mt-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submit();
-          }}
-        >
-          <label htmlFor={fieldId} className="mb-1.5 block text-label text-muted-foreground">
-            Type <span className="font-mono text-foreground">{confirm.expected}</span> to confirm
-          </label>
-          <Input
-            id={fieldId}
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            autoComplete="off"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            disabled={pending}
-            aria-describedby={hintId}
-            className="font-mono"
-          />
-          <p id={hintId} className="mt-1.5 text-caption text-muted-foreground">
-            This is your Nest username. Capital letters count.
-          </p>
-          {error ? (
-            <Alert tone="error" role="alert" className="mt-4">
-              {error}
-            </Alert>
-          ) : null}
-          <AlertDialogFooter>
-            <AlertDialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
-              Cancel
-            </AlertDialogClose>
-            <Button type="submit" loading={pending} disabled={!ok}>
-              {pending ? "Turning on…" : copy.button}
-            </Button>
-          </AlertDialogFooter>
-        </form>
-      </AlertDialogContent>
-    </AlertDialog>
   );
 }
