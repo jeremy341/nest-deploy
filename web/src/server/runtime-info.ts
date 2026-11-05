@@ -3,6 +3,7 @@ import { audit } from "@/server/audit";
 import { getDb, schema } from "@/server/db";
 import { DEFAULT_UNIT_DIR, unitName } from "@/server/deploy/layout";
 import { removePreview, removeProject, runtimeLogs, startUnit } from "@/server/deploy/remote";
+import { filterByLevel, journalSince, type LogLevel, type LogRange } from "@/lib/log-filter";
 import { HttpError } from "@/server/http";
 import { getProjectForUser } from "@/server/projects";
 import { getServerForUser, withServerSession } from "@/server/servers";
@@ -13,22 +14,30 @@ export async function fetchRuntimeLogs(
   userId: string,
   projectId: string,
   lines = 200,
-  search = ""
+  search = "",
+  filter: { range?: LogRange; level?: LogLevel } = {}
 ) {
   const project = await getProjectForUser(userId, projectId);
   const server = await getServerForUser(userId, project.serverId);
   const q = search.trim().toLowerCase().slice(0, 200);
   // A search looks through the largest window the server will hand over, so
   // matches are not limited to the few lines the page already shows.
-  const window = q ? 1000 : lines;
+  // The level filter reads the same wide window, so the lines it keeps are not
+  // limited to the warnings among the newest few.
+  const level = filter.level ?? "all";
+  const window = q || level !== "all" ? 1000 : lines;
+  const since = filter.range ? journalSince(filter.range) : undefined;
   const res = await withServerSession(server, (s) =>
-    s.script(runtimeLogs(unitName(project.slug), window), { timeoutMs: 30_000 })
+    s.script(runtimeLogs(unitName(project.slug), window, since), { timeoutMs: 30_000 })
   );
   if (res.code !== 0) {
     throw new HttpError(502, "Could not read the logs from your container.", "upstream");
   }
-  const all = res.stdout.split(/\r?\n/).filter((l) => l.length > 0);
-  return q ? all.filter((l) => l.toLowerCase().includes(q)).slice(-lines) : all;
+  const all = filterByLevel(
+    res.stdout.split(/\r?\n/).filter((l) => l.length > 0),
+    level
+  );
+  return q ? all.filter((l) => l.toLowerCase().includes(q)).slice(-lines) : all.slice(-lines);
 }
 
 /** Restart the production service without building anything. */

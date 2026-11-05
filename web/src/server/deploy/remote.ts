@@ -137,9 +137,11 @@ export function healthCheck(args: {
   );
 }
 
-export function journalTail(unit: string, lines = 40) {
+/** `since` is a journalctl time such as "1 hour ago"; it is always shell-quoted. */
+export function journalTail(unit: string, lines = 40, since?: string) {
+  const window = since ? ` --since ${shellQuote(since)}` : "";
   return (
-    `journalctl -u ${shellQuote(unit)} -n ${Number(lines)} --no-pager -o short-iso 2>&1 || true\n`
+    `journalctl -u ${shellQuote(unit)} -n ${Number(lines)}${window} --no-pager -o short-iso 2>&1 || true\n`
   );
 }
 
@@ -201,8 +203,8 @@ export function removeProject(args: {
   );
 }
 
-export function runtimeLogs(unit: string, lines: number) {
-  return journalTail(unit, Math.max(1, Math.min(lines, 1000)));
+export function runtimeLogs(unit: string, lines: number, since?: string) {
+  return journalTail(unit, Math.max(1, Math.min(lines, 1000)), since);
 }
 
 /**

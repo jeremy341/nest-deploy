@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   applyDeploymentQuery,
+  bulkSummary,
+  canBulkCancel,
+  canBulkDelete,
+  canCompare,
+  compareRows,
   DEFAULT_QUERY,
   isDefaultQuery,
   statusCounts,
@@ -113,5 +118,91 @@ describe("deployments filter", () => {
       building: 1,
       error: 0,
     });
+  });
+});
+
+describe("bulk eligibility", () => {
+  const old = hoursAgo(48);
+  const preview = (over: Partial<DeploymentView>) =>
+    dep({ env: "preview", createdAt: old, ...over });
+
+  it("cancels only previews that are queued, building or deploying", () => {
+    expect(canBulkCancel(preview({ rawState: "queued" }))).toBe(true);
+    expect(canBulkCancel(preview({ rawState: "building" }))).toBe(true);
+    expect(canBulkCancel(preview({ rawState: "deploying" }))).toBe(true);
+    expect(canBulkCancel(preview({ rawState: "ready" }))).toBe(false);
+    expect(canBulkCancel(preview({ rawState: "error" }))).toBe(false);
+    expect(canBulkCancel(preview({ rawState: "canceled" }))).toBe(false);
+  });
+
+  it("never cancels production or live releases", () => {
+    expect(canBulkCancel(dep({ env: "production", rawState: "building" }))).toBe(false);
+    expect(canBulkCancel(preview({ rawState: "building", isCurrent: true }))).toBe(false);
+  });
+
+  it("deletes only old, finished previews that are not live or cleaned up", () => {
+    expect(canBulkDelete(preview({}), NOW)).toBe(true);
+    expect(canBulkDelete(preview({ rawState: "error" }), NOW)).toBe(true);
+    expect(canBulkDelete(preview({ createdAt: hoursAgo(2) }), NOW)).toBe(false);
+    expect(canBulkDelete(preview({ createdAt: hoursAgo(24) }), NOW)).toBe(true);
+    expect(canBulkDelete(preview({ cleanedUp: true }), NOW)).toBe(false);
+    expect(canBulkDelete(preview({ isCurrent: true }), NOW)).toBe(false);
+    expect(canBulkDelete(preview({ rawState: "building" }), NOW)).toBe(false);
+  });
+
+  it("never deletes production releases", () => {
+    expect(canBulkDelete(dep({ env: "production", createdAt: old }), NOW)).toBe(false);
+  });
+
+  it("counts what a selection allows", () => {
+    const sel = [
+      preview({ rawState: "building" }),
+      preview({}),
+      dep({ env: "production", createdAt: old }),
+    ];
+    expect(bulkSummary(sel, NOW)).toEqual({ cancel: 1, delete: 1 });
+  });
+
+  it("compares only when exactly two are selected", () => {
+    expect([0, 1, 2, 3].map(canCompare)).toEqual([false, false, true, false]);
+  });
+});
+
+describe("compareRows", () => {
+  const fmt = (iso: string) => iso.slice(0, 10);
+
+  it("lists the fields in order and marks what differs", () => {
+    const a = dep({ branch: "main", sha: "abcdef1234", commit: "One", isCurrent: true, createdAt: hoursAgo(1) });
+    const b = dep({
+      branch: "feature",
+      sha: "abcdef1234",
+      commit: "Two",
+      env: "preview",
+      rawState: "error",
+      duration: "1m 2s",
+      createdAt: hoursAgo(30),
+    });
+    const rows = compareRows(a, b, fmt);
+    expect(rows.map((r) => r.label)).toEqual([
+      "Branch",
+      "Commit SHA",
+      "Commit message",
+      "Environment",
+      "State",
+      "Duration",
+      "Created",
+      "Live release",
+    ]);
+    const by = Object.fromEntries(rows.map((r) => [r.label, r]));
+    expect(by["Commit SHA"]).toMatchObject({ a: "abcdef1", b: "abcdef1", differs: false });
+    expect(by["Environment"]).toMatchObject({ a: "Production", b: "Preview", differs: true });
+    expect(by["State"]).toMatchObject({ a: "Ready", b: "Error", differs: true });
+    expect(by["Live release"]).toMatchObject({ a: "Yes", b: "No", differs: true });
+  });
+
+  it("shows None when a commit is missing", () => {
+    const rows = compareRows(dep({ sha: null, commit: null }), dep({}), fmt);
+    expect(rows[1].a).toBe("None");
+    expect(rows[2].a).toBe("None");
   });
 });

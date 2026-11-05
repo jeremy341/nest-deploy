@@ -38,12 +38,18 @@ export function DeploymentRow({
   deployment,
   showProject = true,
   demo = false,
+  selected = false,
+  onSelectedChange,
 }: {
   deployment: DeploymentView;
   showProject?: boolean;
   /** Sample data on the homepage: no links and no actions menu. */
   demo?: boolean;
+  selected?: boolean;
+  /** When given, the row shows a checkbox for compare and bulk actions. */
+  onSelectedChange?: (checked: boolean) => void;
 }) {
+  const selectable = !demo && onSelectedChange !== undefined;
   const href = `/projects/${deployment.projectSlug}/deployments/${deployment.id}`;
   const title = deployment.commit ?? `${deployment.source} deployment`;
 
@@ -51,6 +57,8 @@ export function DeploymentRow({
     <li
       className={cn(
         "relative grid grid-cols-[minmax(0,1fr)] gap-x-4 gap-y-3 px-4 py-3",
+        selectable && "pl-12",
+        selected && "bg-[var(--ds-gray-alpha-100)]",
         !demo &&
           "row-focus transition-colors duration-(--dur-fast) hover:bg-[var(--ds-gray-alpha-100)]",
         showProject
@@ -59,6 +67,19 @@ export function DeploymentRow({
         "md:items-center"
       )}
     >
+      {selectable ? (
+        // The whole 44px strip is the target; it sits above the stretched link.
+        <label className="absolute inset-y-0 left-0 z-10 flex w-11 cursor-pointer items-center justify-center">
+          <input
+            type="checkbox"
+            className="size-4 cursor-pointer"
+            checked={selected}
+            onChange={(e) => onSelectedChange(e.target.checked)}
+            aria-label={`Select deployment ${(deployment.sha ?? deployment.id).slice(0, 7)} of ${deployment.projectName}`}
+          />
+        </label>
+      ) : null}
+
       {showProject ? (
         <p className="relative z-10 hidden min-w-0 md:block">
           <Link

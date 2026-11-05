@@ -1,16 +1,32 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CubeIcon, MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowsLeftRightIcon,
+  CubeIcon,
+  MagnifyingGlassIcon,
+  ProhibitIcon,
+  TrashIcon,
+  XIcon,
+} from "@phosphor-icons/react";
+import { api } from "@/components/api";
+import { DeploymentCompare } from "@/components/deployment-compare";
 import { DeploymentRow } from "@/components/deployment-row";
 import { Stagger } from "@/components/motion/stagger";
 import { Segmented } from "@/components/segmented";
+import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { toast } from "@/components/ui/toast";
 import {
   applyDeploymentQuery,
+  bulkSummary,
+  canBulkCancel,
+  canBulkDelete,
+  canCompare,
   DEFAULT_QUERY,
   isDefaultQuery,
   statusCounts,
@@ -25,6 +41,8 @@ import { cn } from "@/lib/utils";
 
 const LIST = "hairline-y overflow-hidden rounded-lg bg-card shadow-border-small";
 const PAGE = 25;
+
+type BulkResult = { id: string; ok: boolean; message?: string };
 
 const SORTS: { value: SortKey; label: string }[] = [
   { value: "newest", label: "Newest first" },
@@ -50,12 +68,34 @@ export function DeploymentsView({
   /** Sample data on the homepage: only the status filter, rows are not links. */
   demo?: boolean;
 }) {
+  const router = useRouter();
   const [query, setQuery] = useState<DeploymentQuery>(DEFAULT_QUERY);
   const [shown, setShown] = useState(PAGE);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [comparing, setComparing] = useState(false);
   const set = <K extends keyof DeploymentQuery>(key: K, value: DeploymentQuery[K]) => {
     setQuery((q) => ({ ...q, [key]: value }));
     setShown(PAGE); // a new filter starts again from the top of the list
+    clearSelection(); // a selection never carries rows the filter just hid
   };
+  const resetQuery = () => {
+    setQuery(DEFAULT_QUERY);
+    setShown(PAGE);
+    clearSelection();
+  };
+  function clearSelection() {
+    setSelected(new Set());
+    setComparing(false);
+  }
+  function toggle(id: string, checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+    setComparing(false);
+  }
 
   const projects = useMemo(() => {
     const seen = new Map<string, string>();
@@ -78,9 +118,64 @@ export function DeploymentsView({
 
   const page = visible.slice(0, shown);
   const rows = page.map((d) => (
-    <DeploymentRow key={d.id} deployment={d} showProject={showProject} demo={demo} />
+    <DeploymentRow
+      key={d.id}
+      deployment={d}
+      showProject={showProject}
+      demo={demo}
+      selected={selected.has(d.id)}
+      onSelectedChange={demo ? undefined : (checked) => toggle(d.id, checked)}
+    />
   ));
   const filtered = !isDefaultQuery(query);
+
+  // Only rows that are on screen count, so the numbers match what you can see.
+  const picked = visible.filter((d) => selected.has(d.id));
+  const allShownPicked = page.length > 0 && page.every((d) => selected.has(d.id));
+  const somePicked = page.some((d) => selected.has(d.id));
+  const allowed = bulkSummary(picked);
+  const pair = canCompare(picked.length) ? ([picked[0], picked[1]] as const) : null;
+
+  /** Tell the person what happened per item, then refresh the list. */
+  function report(results: BulkResult[], past: string, noun: string) {
+    const done = results.filter((r) => r.ok).length;
+    const failed = results.filter((r) => !r.ok);
+    if (done > 0) toast.success(`${past} ${done} ${done === 1 ? noun : noun + "s"}`);
+    if (failed.length > 0) {
+      const first = failed[0].message ?? "Something went wrong";
+      toast.error(
+        `${failed.length} could not be ${past.toLowerCase()}`,
+        failed.length > 1 ? `${first} (and ${failed.length - 1} more)` : first
+      );
+    }
+    clearSelection();
+    router.refresh();
+  }
+
+  async function bulk(path: "bulk-cancel" | "bulk-delete", eligible: (d: DeploymentView) => boolean) {
+    const ids = picked.filter(eligible).map((d) => d.id);
+    const res = await api<{ results: BulkResult[] }>(`/api/deployments/${path}`, {
+      body: { ids },
+    });
+    return res.results;
+  }
+
+  async function bulkCancel() {
+    try {
+      report(await bulk("bulk-cancel", canBulkCancel), "Canceled", "deployment");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
+    }
+  }
+
+  async function bulkDelete() {
+    // A throw keeps the dialog open with the message, so it is only used when nothing worked.
+    const results = await bulk("bulk-delete", (d) => canBulkDelete(d));
+    if (results.length > 0 && results.every((r) => !r.ok)) {
+      throw new Error(results[0].message ?? "None of the previews could be deleted.");
+    }
+    report(results, "Deleted", "preview");
+  }
 
   const statusFilter = (
     <Segmented<StatusFilter>
@@ -194,20 +289,34 @@ export function DeploymentsView({
         </div>
 
         <div className="flex min-h-8 items-center justify-between gap-3">
-          <p role="status" aria-live="polite" className="text-label text-muted-foreground">
-            {filtered
-              ? `${visible.length} of ${deployments.length} deployments`
-              : `${deployments.length} deployments`}
-          </p>
+          <div className="flex items-center gap-3">
+            <label className="inline-flex min-h-10 items-center gap-2 text-label text-muted-foreground sm:min-h-8">
+              <input
+                type="checkbox"
+                checked={allShownPicked}
+                ref={(el) => {
+                  if (el) el.indeterminate = somePicked && !allShownPicked;
+                }}
+                disabled={page.length === 0}
+                onChange={(e) => {
+                  setSelected(e.target.checked ? new Set(page.map((d) => d.id)) : new Set());
+                  setComparing(false);
+                }}
+              />
+              Select all shown
+            </label>
+            <p role="status" aria-live="polite" className="text-label text-muted-foreground">
+              {filtered
+                ? `${visible.length} of ${deployments.length} deployments`
+                : `${deployments.length} deployments`}
+            </p>
+          </div>
           {filtered ? (
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => {
-                setQuery(DEFAULT_QUERY);
-                setShown(PAGE);
-              }}
+              onClick={resetQuery}
             >
               <XIcon />
               Clear filters
@@ -215,6 +324,66 @@ export function DeploymentsView({
           ) : null}
         </div>
       </div>
+
+      {picked.length > 0 ? (
+        <div
+          role="region"
+          aria-label="Actions for selected deployments"
+          className="mb-4 space-y-2 rounded-lg bg-card p-3 shadow-border-small"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <p role="status" aria-live="polite" className="mr-auto font-medium tracking-[-0.02em]">
+              {picked.length} selected
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!pair}
+              onClick={() => setComparing(true)}
+            >
+              <ArrowsLeftRightIcon aria-hidden="true" />
+              Compare
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={allowed.cancel === 0}
+              onClick={() => void bulkCancel()}
+            >
+              <ProhibitIcon aria-hidden="true" />
+              Cancel{allowed.cancel > 0 ? ` (${allowed.cancel})` : ""}
+            </Button>
+            <ConfirmDialog
+              trigger={
+                <Button type="button" variant="outline" size="sm" disabled={allowed.delete === 0}>
+                  <TrashIcon aria-hidden="true" />
+                  Delete previews{allowed.delete > 0 ? ` (${allowed.delete})` : ""}
+                </Button>
+              }
+              tone="destructive"
+              title={`Delete ${allowed.delete} ${allowed.delete === 1 ? "preview" : "previews"}?`}
+              description="Each preview is stopped and its files are removed from your container. This cannot be undone. Production releases and the live release are never deleted."
+              confirmLabel="Delete previews"
+              pendingLabel="Deleting…"
+              onConfirm={bulkDelete}
+            />
+            <Button type="button" variant="ghost" size="sm" onClick={clearSelection}>
+              <XIcon aria-hidden="true" />
+              Clear selection
+            </Button>
+          </div>
+          <p className="text-label text-muted-foreground">
+            Compare needs exactly two. Cancel and Delete previews only apply to previews: Cancel to
+            ones still running, Delete to ones older than a day. Other selected rows are skipped.
+          </p>
+        </div>
+      ) : null}
+
+      {comparing && pair ? (
+        <DeploymentCompare a={pair[0]} b={pair[1]} onClose={() => setComparing(false)} />
+      ) : null}
 
       {visible.length === 0 ? (
         <div className="rounded-lg bg-card px-4 shadow-border-small">
@@ -228,10 +397,7 @@ export function DeploymentsView({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  setQuery(DEFAULT_QUERY);
-                  setShown(PAGE);
-                }}
+                onClick={resetQuery}
               >
                 Clear filters
               </Button>
