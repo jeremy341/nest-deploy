@@ -50,6 +50,13 @@
       "when": 1793872205900,
       "tag": "0006_omniscient_norrin_radd",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793879991808,
+      "tag": "0007_true_kingpin",
+      "breakpoints": true
     }
   ]
 }

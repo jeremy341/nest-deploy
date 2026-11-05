@@ -19,6 +19,30 @@ export const users = sqliteTable("users", {
   createdAt: ts("created_at").notNull(),
 });
 
+/**
+ * Personal access tokens for the public API and AI agents. Only a hash is stored;
+ * the token is shown once when it is created. `scopes` is a JSON array.
+ */
+export const apiTokens = sqliteTable(
+  "api_tokens",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** First characters of the token, shown in lists so tokens can be told apart. */
+    prefix: text("prefix").notNull(),
+    hash: text("hash").notNull(),
+    scopes: text("scopes").notNull(),
+    createdAt: ts("created_at").notNull(),
+    lastUsedAt: ts("last_used_at"),
+    expiresAt: ts("expires_at").notNull(),
+    revokedAt: ts("revoked_at"),
+  },
+  (t) => [uniqueIndex("api_tokens_hash_idx").on(t.hash), index("api_tokens_user_idx").on(t.userId)]
+);
+
 /** Session ids are stored hashed; the raw token only lives in the cookie. */
 export const sessions = sqliteTable(
   "sessions",

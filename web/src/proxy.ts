@@ -15,6 +15,12 @@ const PUBLIC = [
   /^\/api\/analytics\/script$/,
   /^\/api\/collect\//,
   /^\/status\//,
+  // The public stats page and its data, and the API and agent endpoints. The
+  // API and agent endpoints check their own bearer token; the proxy only lets them through.
+  /^\/stats$/,
+  /^\/api\/stats$/,
+  /^\/api\/v1\//,
+  /^\/api\/mcp$/,
 ];
 
 export function proxy(req: NextRequest) {
