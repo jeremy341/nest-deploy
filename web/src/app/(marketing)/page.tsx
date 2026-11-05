@@ -397,6 +397,62 @@ const LIMITS = [
  * trust us with something. The time limits are the real numbers from the code,
  * set large.
  */
+const TRACKED = [
+  [
+    "Page views",
+    "Add one script tag to your site and it counts page views, which pages were read and which sites sent people. Visitors are counted once a day, using a hash that changes every day. We store no IP address and set no cookie. Numbers are kept for 90 days.",
+  ],
+  [
+    "Container resources",
+    "CPU load, memory and disk for the whole container, and each project's memory, CPU and restarts. Look back over the last hour, day or week.",
+  ],
+  [
+    "Uptime and a status page",
+    "The worker checks each project and records whether it answers. You can publish a status page at its own address. It shows the name, the current state and recent outages, and nothing else.",
+  ],
+  [
+    "Alerts",
+    "Get a message when a project goes down, when memory, CPU or disk passes a limit you set, or when a deploy finishes or fails. Send them to Discord or Slack. A problem that lasts sends one alert, not one per check.",
+  ],
+  [
+    "Build and runtime logs",
+    "Each build streams its output as it runs. Runtime logs are your app's own output, and every line is tagged info, warning or error, so you can show only the problems.",
+  ],
+  [
+    "Domains",
+    "Each domain's DNS is checked, and so is whether your app answers on it, before you rely on it.",
+  ],
+];
+
+function Track() {
+  return (
+    <section id="track" className={section}>
+      <Reveal className={cn(wrap, "grid gap-12 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-20")}>
+        <div className="lg:sticky lg:top-24 lg:self-start lg:pt-2">
+          <p className="text-docs-lead text-reading max-w-[30ch]">
+            Know what your apps are doing before your users tell you.
+          </p>
+          <p className="text-body mt-5 max-w-[34ch] text-muted-foreground">
+            Nest Deploy collects most of this itself, from the container and its worker. Only page views need a
+            script on your site, and you can leave it out.
+          </p>
+        </div>
+        <div className="min-w-0">
+          <h2 className={cn(h2, "max-w-[20ch]")}>Track what matters, and nothing more.</h2>
+          <dl className="mt-12 grid gap-x-10 gap-y-8 sm:grid-cols-2">
+            {TRACKED.map(([term, text]) => (
+              <div key={term} className="border-t pt-5">
+                <dt className="font-pixel text-[21px] leading-6 font-medium">{term}</dt>
+                <dd className="text-prose mt-3 max-w-[44ch] text-muted-foreground">{text}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </Reveal>
+    </section>
+  );
+}
+
 function Security() {
   return (
     <section id="security" className="scroll-mt-14 bg-foreground py-20 text-background lg:py-32">
@@ -599,6 +655,8 @@ export default function HomePage() {
           <BuildLogs deploymentId="sample" initialLines={SAMPLE_LOG} rawState="error" duration="48s" />
         </div>
       </Showcase>
+
+      <Track />
 
       <Security />
       <Faq />

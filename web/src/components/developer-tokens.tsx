@@ -9,6 +9,7 @@ import { TokenListSkeleton } from "@/components/skeletons/developer";
 import { StatusIndicator } from "@/components/status-dot";
 import { Alert } from "@/components/ui/alert";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { fieldClass, Input } from "@/components/ui/input";
@@ -63,6 +64,7 @@ export function DeveloperTokens({ scopes }: { scopes: ScopeOption[] }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [secret, setSecret] = useState<Secret | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const secretRef = useRef<HTMLInputElement>(null);
   const listHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -138,29 +140,37 @@ export function DeveloperTokens({ scopes }: { scopes: ScopeOption[] }) {
       description="A token lets a script or an AI agent act for you, with only the permissions you pick. Treat it like a password."
     >
       <div className="space-y-6">
-        {secret ? (
-          <SecretPanel
-            secret={secret}
-            inputRef={secretRef}
-            onDone={() => {
-              setSecret(null);
-              focusSoon("list");
-            }}
-          />
-        ) : null}
-
-        <CreateForm
+        <TokenCreateDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
           scopes={scopes}
           disabled={atLimit || tokens === null}
-          blockedBySecret={secret !== null}
           limitReached={atLimit}
+          secret={secret}
+          secretRef={secretRef}
           onCreated={onCreated}
+          onSecretDone={() => {
+            setSecret(null);
+            setCreateOpen(false);
+            focusSoon("list");
+          }}
         />
 
         <section aria-labelledby="tokens-list-heading">
-          <h3 id="tokens-list-heading" ref={listHeadingRef} tabIndex={-1} className="font-medium outline-none">
-            Your tokens
-          </h3>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 id="tokens-list-heading" ref={listHeadingRef} tabIndex={-1} className="font-medium outline-none">
+              Your tokens
+            </h3>
+            <Button
+              type="button"
+              size="sm"
+              disabled={atLimit || tokens === null}
+              onClick={() => setCreateOpen(true)}
+              className="max-sm:w-full"
+            >
+              Create token
+            </Button>
+          </div>
           {tokens ? <p className="mt-0.5 text-label text-muted-foreground">{limitNote(active)}</p> : null}
 
           <div className="mt-3">
@@ -186,7 +196,7 @@ export function DeveloperTokens({ scopes }: { scopes: ScopeOption[] }) {
                 size="compact"
                 className="py-4"
                 title="No tokens yet"
-                description="Create one above to let a script or an AI agent use the API."
+                description="Create one to let a script or an AI agent use the API."
               />
             ) : (
               <ul className="hairline-y overflow-hidden rounded-md shadow-border-base">
@@ -255,16 +265,44 @@ function SecretPanel({
   );
 }
 
+/** Which area of the product each permission touches, in the order they are listed. */
+const AREA_TITLE: Record<string, string> = {
+  projects: "Projects",
+  deployments: "Deployments and logs",
+  logs: "Deployments and logs",
+  env: "Environment variables",
+  domains: "Domains",
+  notifications: "Alerts and notifications",
+  alerts: "Alerts and notifications",
+  analytics: "Analytics",
+  resources: "Resources",
+  container: "Container",
+  activity: "Activity",
+  files: "Files",
+  terminal: "Terminal",
+};
+
+/** Keeps the permissions in the order the API lists them, under a heading for each area. */
+function groupScopes(scopes: ScopeOption[]) {
+  const groups = new Map<string, ScopeOption[]>();
+  for (const s of scopes) {
+    const area = AREA_TITLE[s.id.split(":")[0]] ?? "Other";
+    groups.set(area, [...(groups.get(area) ?? []), s]);
+  }
+  return [...groups].map(([title, items]) => ({ title, items }));
+}
+
+/** Quick picks for the common jobs. A pick only ever includes permissions that exist. */
+const DEPLOY_PRESET = ["projects:read", "deployments:read", "deployments:write", "logs:read"];
+
 function CreateForm({
   scopes,
   disabled,
-  blockedBySecret,
   limitReached,
   onCreated,
 }: {
   scopes: ScopeOption[];
   disabled: boolean;
-  blockedBySecret: boolean;
   limitReached: boolean;
   onCreated: (token: TokenSummary, secret: string) => void;
 }) {
@@ -273,9 +311,9 @@ function CreateForm({
   const nameErrId = `${uid}-name-error`;
   const nameHintId = `${uid}-name-hint`;
   const scopeErrId = `${uid}-scope-error`;
+  const scopeCountId = `${uid}-scope-count`;
   const expiryId = `${uid}-expiry`;
   const expiryNoteId = `${uid}-expiry-note`;
-  const blockedId = `${uid}-blocked`;
   const nameRef = useRef<HTMLInputElement>(null);
   const firstScopeRef = useRef<HTMLInputElement>(null);
 
@@ -287,6 +325,11 @@ function CreateForm({
   const [serverError, setServerError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
+  const presets = [
+    { label: "Read only", ids: scopes.filter((s) => s.id.endsWith(":read")).map((s) => s.id) },
+    { label: "Deploy", ids: DEPLOY_PRESET.filter((id) => scopes.some((s) => s.id === id)) },
+  ];
+
   function toggle(id: string, on: boolean) {
     setScopeError(null);
     setPicked((cur) => {
@@ -297,6 +340,11 @@ function CreateForm({
     });
   }
 
+  function applyPreset(ids: string[]) {
+    setScopeError(null);
+    setPicked(new Set(ids));
+  }
+
   // A container permission (terminal, file changes) caps the token at 7 days, so the choice narrows.
   const pickedList = [...picked];
   const limited = holdsShortLived(pickedList);
@@ -305,7 +353,7 @@ function CreateForm({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (pending || disabled || blockedBySecret) return;
+    if (pending || disabled) return;
     setServerError(null);
     const trimmed = name.trim();
     const nErr = trimmed ? null : "Give the token a name.";
@@ -325,9 +373,6 @@ function CreateForm({
           expiresInDays: expiryDays,
         },
       });
-      setName("");
-      setPicked(new Set());
-      setDays(DEFAULT_EXPIRY_DAYS);
       onCreated(res.token, res.secret);
     } catch (err) {
       setServerError(errorText(err, "Could not create the token. Try again."));
@@ -337,107 +382,154 @@ function CreateForm({
   }
 
   return (
-    <form
-      onSubmit={submit}
-      noValidate
-      aria-labelledby={`${uid}-heading`}
-      className="space-y-4 rounded-md p-4 shadow-border-base"
-    >
-      <h3 id={`${uid}-heading`} className="font-medium">
-        Create a token
-      </h3>
-
-      <div>
-        <Label htmlFor={nameId}>Name</Label>
-        <Input
-          id={nameId}
-          ref={nameRef}
-          value={name}
-          maxLength={NAME_MAX_LENGTH}
-          required
-          aria-required="true"
-          aria-invalid={nameError ? true : undefined}
-          aria-describedby={nameError ? `${nameHintId} ${nameErrId}` : nameHintId}
-          autoComplete="off"
-          onChange={(e) => {
-            setName(e.target.value);
-            setNameError(null);
-          }}
-          className="sm:max-w-sm"
-        />
-        <p id={nameHintId} className="mt-1.5 text-caption text-muted-foreground">
-          So you can tell it apart later. Up to {NAME_MAX_LENGTH} characters.
-        </p>
-        {nameError ? (
-          <p id={nameErrId} role="alert" className="mt-1 text-label text-destructive">
-            {nameError}
+    <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-4">
+        <div>
+          <Label htmlFor={nameId}>Name</Label>
+          <Input
+            id={nameId}
+            ref={nameRef}
+            value={name}
+            maxLength={NAME_MAX_LENGTH}
+            required
+            aria-required="true"
+            aria-invalid={nameError ? true : undefined}
+            aria-describedby={nameError ? `${nameHintId} ${nameErrId}` : nameHintId}
+            autoComplete="off"
+            onChange={(e) => {
+              setName(e.target.value);
+              setNameError(null);
+            }}
+            className="sm:max-w-sm"
+          />
+          <p id={nameHintId} className="mt-1.5 text-caption text-muted-foreground">
+            So you can tell it apart later, for example standup-bot. Up to {NAME_MAX_LENGTH} characters.
           </p>
-        ) : null}
-      </div>
-
-      <fieldset className="min-w-0" aria-describedby={scopeError ? scopeErrId : undefined}>
-        <legend className="mb-1.5 text-label text-muted-foreground">Permissions</legend>
-        <ScopeChecklist scopes={scopes} picked={picked} onToggle={toggle} firstRef={firstScopeRef} />
-        {scopeError ? (
-          <p id={scopeErrId} role="alert" className="mt-1.5 text-label text-destructive">
-            {scopeError}
-          </p>
-        ) : null}
-      </fieldset>
-
-      <div>
-        <Label htmlFor={expiryId}>Expires after</Label>
-        <NativeSelect
-          id={expiryId}
-          value={expiryDays}
-          aria-describedby={limited ? expiryNoteId : undefined}
-          onChange={(e) => setDays(Number(e.target.value))}
-          className="sm:max-w-48"
-        >
-          {expiryChoices.map((o) => (
-            <option key={o.days} value={o.days}>
-              {o.label}
-            </option>
-          ))}
-        </NativeSelect>
-        <div role="status">
-          {limited ? (
-            <p id={expiryNoteId} className="mt-1.5 text-caption text-muted-foreground">
-              {SHORT_LIVED_NOTE}
+          {nameError ? (
+            <p id={nameErrId} role="alert" className="mt-1 text-label text-destructive">
+              {nameError}
             </p>
           ) : null}
         </div>
+
+        <fieldset className="min-w-0" aria-describedby={scopeError ? scopeErrId : scopeCountId}>
+          <legend className="mb-2 text-label text-muted-foreground">Permissions</legend>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            {presets.map((p) => (
+              <Button key={p.label} type="button" size="sm" variant="outline" onClick={() => applyPreset(p.ids)}>
+                {p.label}
+              </Button>
+            ))}
+            <Button type="button" size="sm" variant="ghost" disabled={picked.size === 0} onClick={() => applyPreset([])}>
+              Clear
+            </Button>
+            <span id={scopeCountId} className="tabular ml-auto text-caption text-muted-foreground">
+              {picked.size === 0 ? "None picked yet" : `${picked.size} picked`}
+            </span>
+          </div>
+          <ScopeChecklist scopes={scopes} picked={picked} onToggle={toggle} firstRef={firstScopeRef} />
+          {scopeError ? (
+            <p id={scopeErrId} role="alert" className="mt-1.5 text-label text-destructive">
+              {scopeError}
+            </p>
+          ) : null}
+        </fieldset>
+
+        <div>
+          <Label htmlFor={expiryId}>Expires after</Label>
+          <NativeSelect
+            id={expiryId}
+            value={expiryDays}
+            aria-describedby={limited ? expiryNoteId : undefined}
+            onChange={(e) => setDays(Number(e.target.value))}
+            className="sm:max-w-48"
+          >
+            {expiryChoices.map((o) => (
+              <option key={o.days} value={o.days}>
+                {o.label}
+              </option>
+            ))}
+          </NativeSelect>
+          <div role="status">
+            {limited ? (
+              <p id={expiryNoteId} className="mt-1.5 text-caption text-muted-foreground">
+                {SHORT_LIVED_NOTE}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        {serverError ? (
+          <Alert tone="error" role="alert">
+            {serverError}
+          </Alert>
+        ) : null}
       </div>
 
-      {serverError ? (
-        <Alert tone="error" role="alert">
-          {serverError}
-        </Alert>
-      ) : null}
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button
-          type="submit"
-          loading={pending}
-          disabled={disabled || blockedBySecret}
-          aria-describedby={blockedBySecret ? blockedId : undefined}
-          className="max-sm:w-full"
-        >
+      <div className="flex flex-wrap items-center gap-3 border-t px-5 py-3">
+        <Button type="submit" loading={pending} disabled={disabled} className="max-sm:w-full">
           {pending ? "Creating…" : "Create token"}
         </Button>
-        {blockedBySecret ? (
-          <p id={blockedId} className="text-label text-muted-foreground">
-            Confirm you copied the new token first.
-          </p>
-        ) : limitReached ? (
-          <p className="text-label text-muted-foreground">Revoke a token to make room.</p>
-        ) : null}
+        <DialogClose render={<Button type="button" variant="ghost" className="max-sm:w-full" />}>Cancel</DialogClose>
+        {limitReached ? <p className="text-label text-muted-foreground">Revoke a token to make room.</p> : null}
       </div>
     </form>
   );
 }
 
-/** The permission checkboxes, shared by the create form and the token editor. */
+/** The create flow in a dialog. It stays open after creating so the new token can be copied. */
+function TokenCreateDialog({
+  open,
+  onOpenChange,
+  scopes,
+  disabled,
+  limitReached,
+  secret,
+  secretRef,
+  onCreated,
+  onSecretDone,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  scopes: ScopeOption[];
+  disabled: boolean;
+  limitReached: boolean;
+  secret: Secret | null;
+  secretRef: React.RefObject<HTMLInputElement | null>;
+  onCreated: (token: TokenSummary, value: string) => void;
+  onSecretDone: () => void;
+}) {
+  return (
+    <Dialog
+      open={open}
+      // Until the new token is copied, the dialog stays open, so the secret is not lost to a stray Esc.
+      onOpenChange={(next) => {
+        if (!next && secret) return;
+        onOpenChange(next);
+      }}
+    >
+      <DialogContent size="lg">
+        <div className="border-b px-5 py-4">
+          <DialogTitle className="text-title-3">{secret ? "Your new token" : "Create a token"}</DialogTitle>
+          <DialogDescription className="mt-1 text-label">
+            {secret
+              ? "Copy it now. It is shown once."
+              : "Pick only what the script or agent needs. You can change the permissions later."}
+          </DialogDescription>
+        </div>
+        {secret ? (
+          <div className="min-h-0 flex-1 overflow-y-auto p-5">
+            <SecretPanel secret={secret} inputRef={secretRef} onDone={onSecretDone} />
+          </div>
+        ) : (
+          <CreateForm scopes={scopes} disabled={disabled} limitReached={limitReached} onCreated={onCreated} />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** The permission checkboxes, grouped by area. Shared by the create dialog and the token editor. */
 function ScopeChecklist({
   scopes,
   picked,
@@ -450,51 +542,59 @@ function ScopeChecklist({
   firstRef?: React.Ref<HTMLInputElement>;
 }) {
   const groupId = useId();
+  const firstId = scopes[0]?.id;
   return (
-    <ul className="hairline-y overflow-hidden rounded-md shadow-border-base">
-      {scopes.map((s, i) => {
-        const change = isChangeScope(s.id);
-        const badge = scopeBadge(s.id);
-        const note = scopeNote(s.id);
-        const noteId = note ? `${groupId}-${s.id.replace(/\W/g, "-")}-note` : undefined;
-        return (
-          <li key={s.id}>
-            <label
-              className={cn(
-                "flex min-h-11 cursor-pointer items-start gap-3 px-3 py-2.5 max-sm:min-h-12",
-                change && "bg-[var(--tone-warning-bg)]"
-              )}
-            >
-              <input
-                ref={i === 0 ? firstRef : undefined}
-                type="checkbox"
-                className="mt-1 shrink-0"
-                checked={picked.has(s.id)}
-                aria-describedby={noteId}
-                onChange={(e) => onToggle(s.id, e.target.checked)}
-              />
-              <span className="min-w-0">
-                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span>{s.label}</span>
-                  {badge ? (
-                    <span className="inline-flex items-center gap-1 rounded-sm bg-background px-1.5 py-0.5 text-caption font-medium shadow-[0_0_0_1px_var(--tone-warning-ring)]">
-                      <WarningIcon aria-hidden="true" className="size-3 text-[var(--tone-warning-icon)]" />
-                      {badge}
+    <div className="space-y-4">
+      {groupScopes(scopes).map((group) => (
+        <div key={group.title}>
+          <h4 className="mb-1.5 text-caption font-medium text-muted-foreground">{group.title}</h4>
+          <ul className="hairline-y overflow-hidden rounded-md shadow-border-base">
+            {group.items.map((s) => {
+              const change = isChangeScope(s.id);
+              const badge = scopeBadge(s.id);
+              const note = scopeNote(s.id);
+              const noteId = note ? `${groupId}-${s.id.replace(/\W/g, "-")}-note` : undefined;
+              return (
+                <li key={s.id}>
+                  <label
+                    className={cn(
+                      "flex min-h-11 cursor-pointer items-start gap-3 px-3 py-2.5 max-sm:min-h-12",
+                      change && "bg-[var(--tone-warning-bg)]"
+                    )}
+                  >
+                    <input
+                      ref={s.id === firstId ? firstRef : undefined}
+                      type="checkbox"
+                      className="mt-1 shrink-0"
+                      checked={picked.has(s.id)}
+                      aria-describedby={noteId}
+                      onChange={(e) => onToggle(s.id, e.target.checked)}
+                    />
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span>{s.label}</span>
+                        {badge ? (
+                          <span className="inline-flex items-center gap-1 rounded-sm bg-background px-1.5 py-0.5 text-caption font-medium shadow-[0_0_0_1px_var(--tone-warning-ring)]">
+                            <WarningIcon aria-hidden="true" className="size-3 text-[var(--tone-warning-icon)]" />
+                            {badge}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="block font-mono text-caption text-muted-foreground">{s.id}</span>
+                      {note ? (
+                        <span id={noteId} className="mt-1 block max-w-[62ch] text-caption text-muted-foreground">
+                          {note}
+                        </span>
+                      ) : null}
                     </span>
-                  ) : null}
-                </span>
-                <span className="block font-mono text-caption text-muted-foreground">{s.id}</span>
-                {note ? (
-                  <span id={noteId} className="mt-1 block max-w-[62ch] text-caption text-muted-foreground">
-                    {note}
-                  </span>
-                ) : null}
-              </span>
-            </label>
-          </li>
-        );
-      })}
-    </ul>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
 
