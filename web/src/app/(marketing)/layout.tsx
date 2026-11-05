@@ -2,6 +2,7 @@ import Link from "next/link";
 import { MarketingNav } from "@/components/marketing/marketing-nav";
 import { MobileMenu } from "@/components/marketing/mobile-menu";
 import { NestMark } from "@/components/nest-mark";
+import { FooterSwitch } from "@/components/marketing/footer-switch";
 import { PixelField } from "@/components/pixel-field";
 import { ThemeButton } from "@/components/theme-button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -67,6 +68,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         {children}
       </main>
 
+      <FooterSwitch
+        full={
       <footer>
         <div className="mx-auto grid max-w-[1400px] gap-12 px-6 py-16 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
           <div>
@@ -112,6 +115,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           </nav>
         </div>
       </footer>
+        }
+      />
     </div>
   );
 }
