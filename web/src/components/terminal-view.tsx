@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { ArrowClockwiseIcon, TerminalWindowIcon, XIcon } from "@phosphor-icons/react";
+import Link from "next/link";
+import { ArrowClockwiseIcon, LockSimpleIcon, TerminalWindowIcon, XIcon } from "@phosphor-icons/react";
 import { api } from "@/components/api";
 import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { PixelLoader } from "@/components/ui/pixel-loader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IdleSkeleton } from "@/components/terminal-skeleton";
 import type { ScreenEnd } from "@/components/terminal-screen";
+import { OFF_MESSAGES, PERMISSIONS_HREF } from "@/lib/container-permissions";
+import { cn } from "@/lib/utils";
 
 /** xterm touches `window`, so it is only ever loaded in the browser, and only once a terminal is opened. */
 const TerminalScreen = dynamic(() => import("@/components/terminal-screen"), {
@@ -36,7 +39,11 @@ type Phase =
   | { kind: "connecting" }
   | { kind: "live"; session: Session }
   | { kind: "ended"; reason: ScreenEnd }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string }
+  | { kind: "off" };
+
+/** The server answers 403 with a plain message when the owner has turned the terminal off. */
+const isOffMessage = (message: string) => /turned off/i.test(message);
 
 const END_TEXT: Record<ScreenEnd, { title: string; body: string }> = {
   idle: {
@@ -66,7 +73,58 @@ function formatLeft(ms: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
 
+/**
+ * The Terminal tab. When the owner has the terminal switched off for this
+ * server (the default) it only explains that and links to the switch. The
+ * server refuses to open a terminal in that state too, so this is a courtesy,
+ * not the protection.
+ */
 export function TerminalView({
+  projectId,
+  projectName,
+  host,
+  enabled = false,
+}: {
+  projectId: string;
+  projectName: string;
+  host: string;
+  /** Whether the terminal is switched on for this project's server. */
+  enabled?: boolean;
+}) {
+  if (!enabled) return <TerminalOff />;
+  return <TerminalSession projectId={projectId} projectName={projectName} host={host} />;
+}
+
+function TerminalOff({ className }: { className?: string }) {
+  return (
+    <section
+      aria-labelledby="terminal-off"
+      className={cn("rounded-lg bg-card shadow-border-small", className)}
+    >
+      <div className="p-5">
+        <div className="flex items-start gap-3">
+          <LockSimpleIcon aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <h2 id="terminal-off" className="text-title-2">
+              {OFF_MESSAGES.terminal}
+            </h2>
+            <p className="mt-1 max-w-[62ch] text-muted-foreground">
+              The terminal is a shell on your container that runs as root, so it stays off until you turn it on.
+              You do that for each server in Account, under Container permissions.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 rounded-b-lg border-t bg-background-subtle px-5 py-3">
+        <Link href={PERMISSIONS_HREF} className={cn(buttonVariants({ size: "lg" }), "max-sm:w-full")}>
+          Go to Account
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function TerminalSession({
   projectId,
   projectName,
   host,
@@ -95,8 +153,11 @@ export function TerminalView({
       .then((r) => {
         if (!cancelled) setPhase({ kind: "idle", resume: r.session });
       })
-      .catch(() => {
-        if (!cancelled) setPhase({ kind: "idle", resume: null });
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        // Turned off in another tab since this page loaded.
+        if (e instanceof Error && isOffMessage(e.message)) setPhase({ kind: "off" });
+        else setPhase({ kind: "idle", resume: null });
       });
     return () => {
       cancelled = true;
@@ -119,10 +180,8 @@ export function TerminalView({
     try {
       startSession(await api<Session>(base, { method: "POST", body: {} }));
     } catch (e) {
-      setPhase({
-        kind: "error",
-        message: e instanceof Error ? e.message : "Could not open a terminal.",
-      });
+      const text = e instanceof Error ? e.message : "Could not open a terminal.";
+      setPhase(isOffMessage(text) ? { kind: "off" } : { kind: "error", message: text });
     }
   }, [base, startSession]);
 
@@ -172,6 +231,8 @@ export function TerminalView({
       </div>
     );
   }
+
+  if (phase.kind === "off") return <TerminalOff />;
 
   if (phase.kind === "idle" || phase.kind === "connecting") {
     const resume = phase.kind === "idle" ? phase.resume : null;

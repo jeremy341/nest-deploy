@@ -2,7 +2,9 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { FileManager } from "@/components/file-manager";
 import { FilesSkeleton } from "@/components/file-manager-skeleton";
+import { permissionsOrDefault } from "@/lib/container-permissions";
 import { requireUser } from "@/server/auth/current";
+import { getPermissions } from "@/server/permissions";
 import { projectViews } from "@/server/queries";
 
 type Props = {
@@ -21,11 +23,14 @@ async function Content({ params, searchParams }: Props) {
   const user = await requireUser();
   const project = (await projectViews(user.id)).find((p) => p.slug === slug);
   if (!project) notFound();
+  // If the permissions cannot be read, file changes keep their default (on); the server still enforces.
+  const permissions = await permissionsOrDefault(() => getPermissions(user.id, project.serverId));
   return (
     <FileManager
       projectId={project.id}
       slug={project.slug}
       projectName={project.name}
+      fileWrites={permissions.fileWrites}
       initialPath={Array.isArray(path) ? (path[0] ?? "") : (path ?? "")}
     />
   );

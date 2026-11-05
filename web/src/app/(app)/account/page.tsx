@@ -1,11 +1,15 @@
 import { cookies } from "next/headers";
 import { AccountView } from "@/components/account-view";
+import { ContainerPermissionsSection } from "@/components/container-permissions";
 import { Card } from "@/components/settings-ui";
 import { PageHeader } from "@/components/page-header";
 import { timeAgo } from "@/lib/status";
 import { browserLabel, listInstallations, listSessions } from "@/server/account";
 import { requireUser } from "@/server/auth/current";
 import { SESSION_COOKIE } from "@/server/auth/session";
+import { permissionsOf } from "@/server/permissions";
+import { listServers } from "@/server/servers";
+import { normalizePermissions } from "@/lib/container-permissions";
 
 export const metadata = { title: "Account" };
 
@@ -21,9 +25,10 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 export default async function AccountPage() {
   const user = await requireUser();
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  const [sessions, installations] = await Promise.all([
+  const [sessions, installations, servers] = await Promise.all([
     listSessions(user.id, token),
     listInstallations(user.id),
+    listServers(user.id),
   ]);
 
   return (
@@ -70,6 +75,16 @@ export default async function AccountPage() {
             </ul>
           )}
         </Card>
+
+        <ContainerPermissionsSection
+          servers={servers.map((s) => ({
+            id: s.id,
+            label: s.host === "hackclub.app" ? `${s.nestUsername}.hackclub.app` : s.host,
+            nestUsername: s.nestUsername,
+            // Anything missing falls back to the defaults, so the terminal is never shown as on by mistake.
+            permissions: normalizePermissions(permissionsOf(s)),
+          }))}
+        />
 
         <AccountView
           name={user.name}

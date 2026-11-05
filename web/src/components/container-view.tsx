@@ -15,6 +15,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NativeSelect } from "@/components/ui/native-select";
 import { toast } from "@/components/ui/toast";
+import { OFF_MESSAGES, PERMISSIONS_HREF } from "@/lib/container-permissions";
 import { cn } from "@/lib/utils";
 import type {
   Inventory,
@@ -26,7 +27,12 @@ import type {
 } from "@/server/inventory";
 import type { UnitState } from "@/server/ssh/inventory-probe";
 
-export type ContainerServer = { id: string; label: string };
+export type ContainerServer = {
+  id: string;
+  label: string;
+  /** Whether the owner allows removing leftovers on this server. Defaults to on. */
+  orphanRemoval?: boolean;
+};
 
 type Load =
   | { status: "loading" }
@@ -219,10 +225,13 @@ function ProjectRow({ p, conflict }: { p: ProjectEntry; conflict: PortConflict |
 function OrphanRow({
   o,
   hasFolder,
+  canRemove,
   onRemove,
 }: {
   o: OrphanEntry;
   hasFolder: boolean;
+  /** False when the owner has switched removal off: the row is listed without its Remove action. */
+  canRemove: boolean;
   onRemove: (o: OrphanEntry) => Promise<void>;
 }) {
   const isFolder = o.kind === "folder";
@@ -266,7 +275,7 @@ function OrphanRow({
             {!o.removable ? <span>A link, so it cannot be removed here</span> : null}
           </div>
         </div>
-        {isFolder ? (
+        {!canRemove ? null : isFolder ? (
           <TypedConfirmDialog
             trigger={trigger}
             title={`Delete the folder ${o.id}?`}
@@ -330,9 +339,11 @@ function OtherPortRow({ p }: { p: OtherPort }) {
 
 function Body({
   inventory,
+  canRemove,
   onRemove,
 }: {
   inventory: Inventory;
+  canRemove: boolean;
   onRemove: (o: OrphanEntry) => Promise<void>;
 }) {
   const { projects, orphans, otherPorts, conflicts } = inventory;
@@ -396,6 +407,24 @@ function Body({
             count={orphans.length}
             description="An orphan is a service or folder Nest Deploy created earlier that none of your projects use any more. A leftover service keeps running and a leftover folder keeps using disk. Removing a service stops it and deletes its unit file. Deleting a folder permanently deletes the files inside it."
           >
+            {!canRemove ? (
+              <div className="border-b px-4 py-3">
+                <Alert
+                  tone="note"
+                  action={
+                    <Link
+                      href={PERMISSIONS_HREF}
+                      className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
+                    >
+                      Go to Account
+                    </Link>
+                  }
+                >
+                  {OFF_MESSAGES.orphanRemoval} Leftovers are still listed, but they cannot be removed from here.
+                  Turn removal back on in Account, under Container permissions.
+                </Alert>
+              </div>
+            ) : null}
             {orphans.length === 0 ? (
               <div className="px-4">
                 <EmptyState
@@ -408,7 +437,13 @@ function Body({
             ) : (
               <ul className="divide-y">
                 {orphans.map((o) => (
-                  <OrphanRow key={o.id} o={o} hasFolder={folderSlugs.has(o.slug)} onRemove={onRemove} />
+                  <OrphanRow
+                    key={o.id}
+                    o={o}
+                    hasFolder={folderSlugs.has(o.slug)}
+                    canRemove={canRemove}
+                    onRemove={onRemove}
+                  />
                 ))}
               </ul>
             )}
@@ -538,7 +573,9 @@ export function ContainerView({ servers }: { servers: ContainerServer[] }) {
     );
   }
 
-  const serverLabel = servers.find((s) => s.id === serverId)?.label ?? "";
+  const current = servers.find((s) => s.id === serverId);
+  const serverLabel = current?.label ?? "";
+  const canRemove = current?.orphanRemoval !== false;
 
   return (
     <div className="motion-enter">
@@ -592,7 +629,7 @@ export function ContainerView({ servers }: { servers: ContainerServer[] }) {
           </Button>
         </Alert>
       ) : (
-        <Body inventory={load.inventory} onRemove={remove} />
+        <Body inventory={load.inventory} canRemove={canRemove} onRemove={remove} />
       )}
     </div>
   );

@@ -21,14 +21,16 @@ import {
 import { FilePreview, type EditState, type PreviewState } from "@/components/file-manager-preview";
 import { FileTable } from "@/components/file-manager-table";
 import { UploadPanel, type UploadItem } from "@/components/file-manager-upload";
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
 import type { DirListing, FileContent, FileEntry } from "@/server/files";
 import { READ_LIMIT, UPLOAD_LIMIT, joinPath, normalizePath } from "@/server/files-paths";
+import { OFF_MESSAGES, PERMISSIONS_HREF } from "@/lib/container-permissions";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -37,6 +39,12 @@ type Props = {
   projectName: string;
   /** From the address (?path=). Checked by the server like any other path. */
   initialPath: string;
+  /**
+   * Whether the owner allows file changes on this project's server. When off,
+   * browsing, previews and downloads still work and every control that
+   * changes something is hidden. The server refuses the changes as well.
+   */
+  fileWrites?: boolean;
 };
 
 type ListResult = { key: string; path: string; data?: DirListing; error?: FileApiError };
@@ -58,7 +66,7 @@ function safePath(raw: string): string {
   }
 }
 
-export function FileManager({ projectId, slug, projectName, initialPath }: Props) {
+export function FileManager({ projectId, slug, projectName, initialPath, fileWrites = true }: Props) {
   const base = `/api/projects/${projectId}/files`;
   const pageBase = `/projects/${slug}/files`;
 
@@ -116,7 +124,9 @@ export function FileManager({ projectId, slug, projectName, initialPath }: Props
     entriesRef.current = entries;
   }, [entries]);
   const scope = listing?.scope ?? null;
-  const writable = scope?.writable ?? false;
+  // Writable needs both: the folder allows changes, and the owner has not switched them off.
+  const changesOff = !fileWrites;
+  const writable = (scope?.writable ?? false) && fileWrites;
 
   // ---- Preview -------------------------------------------------------------
 
@@ -229,6 +239,7 @@ export function FileManager({ projectId, slug, projectName, initialPath }: Props
   // ---- Edit ----------------------------------------------------------------
 
   function startEdit() {
+    if (changesOff) return;
     if (previewState.status !== "ready" || previewState.data.content === null || !selectedPath) return;
     setSaveError(null);
     setEdit({ path: selectedPath, draft: previewState.data.content, original: previewState.data.content });
@@ -265,6 +276,10 @@ export function FileManager({ projectId, slug, projectName, initialPath }: Props
   }
 
   function askDelete(entry: FileEntry) {
+    if (changesOff) {
+      toast.info(OFF_MESSAGES.fileWrites);
+      return;
+    }
     if (!writable) {
       toast.info("This location is read only", "Files in shared/ and current/ can be changed.");
       return;
@@ -273,6 +288,10 @@ export function FileManager({ projectId, slug, projectName, initialPath }: Props
   }
 
   function askRename(entry: FileEntry) {
+    if (changesOff) {
+      toast.info(OFF_MESSAGES.fileWrites);
+      return;
+    }
     if (!writable) {
       toast.info("This location is read only", "Files in shared/ and current/ can be changed.");
       return;
@@ -373,6 +392,10 @@ export function FileManager({ projectId, slug, projectName, initialPath }: Props
 
   function startUpload(files: File[]) {
     if (files.length === 0) return;
+    if (changesOff) {
+      toast.info(OFF_MESSAGES.fileWrites);
+      return;
+    }
     if (!writable) {
       toast.info("Uploads are not allowed here", "Open shared/ or current/ first.");
       return;
@@ -426,33 +449,39 @@ export function FileManager({ projectId, slug, projectName, initialPath }: Props
       <PageHeader
         className="mb-2"
         title="Files"
-        description={`Browse and edit files in ${projectName}'s folder on your container.`}
+        description={
+          changesOff
+            ? `Browse and download files in ${projectName}'s folder on your container.`
+            : `Browse and edit files in ${projectName}'s folder on your container.`
+        }
         actions={
-          <div className={cn("flex flex-wrap items-center gap-2 max-sm:w-full max-sm:[&>*]:flex-1", hideOnPhonePreview)}>
-            <Button
-              ref={mkdirButton}
-              variant="outline"
-              disabled={!writable}
-              onClick={() => guard(() => openDialog({ kind: "mkdir" }, true))}
-            >
-              <FolderPlusIcon /> New folder
-            </Button>
-            <Button variant="outline" disabled={!writable} onClick={() => fileInput.current?.click()}>
-              <UploadSimpleIcon /> Upload
-            </Button>
-            <input
-              ref={fileInput}
-              type="file"
-              multiple
-              className="sr-only"
-              tabIndex={-1}
-              aria-hidden="true"
-              onChange={(e) => {
-                startUpload(Array.from(e.target.files ?? []));
-                e.target.value = "";
-              }}
-            />
-          </div>
+          changesOff ? undefined : (
+            <div className={cn("flex flex-wrap items-center gap-2 max-sm:w-full max-sm:[&>*]:flex-1", hideOnPhonePreview)}>
+              <Button
+                ref={mkdirButton}
+                variant="outline"
+                disabled={!writable}
+                onClick={() => guard(() => openDialog({ kind: "mkdir" }, true))}
+              >
+                <FolderPlusIcon /> New folder
+              </Button>
+              <Button variant="outline" disabled={!writable} onClick={() => fileInput.current?.click()}>
+                <UploadSimpleIcon /> Upload
+              </Button>
+              <input
+                ref={fileInput}
+                type="file"
+                multiple
+                className="sr-only"
+                tabIndex={-1}
+                aria-hidden="true"
+                onChange={(e) => {
+                  startUpload(Array.from(e.target.files ?? []));
+                  e.target.value = "";
+                }}
+              />
+            </div>
+          )
         }
       />
 
@@ -491,7 +520,19 @@ export function FileManager({ projectId, slug, projectName, initialPath }: Props
           </ol>
         </nav>
 
-        {scope?.temporary ? (
+        {changesOff ? (
+          <Alert
+            tone="note"
+            action={
+              <Link href={PERMISSIONS_HREF} className={cn(buttonVariants({ size: "sm", variant: "outline" }))}>
+                Go to Account
+              </Link>
+            }
+          >
+            {OFF_MESSAGES.fileWrites} You can still browse, read and download files. Turn changes back on in
+            Account, under Container permissions.
+          </Alert>
+        ) : scope?.temporary ? (
           <Alert
             tone="warning"
             title="Changes here last until the next deploy."
