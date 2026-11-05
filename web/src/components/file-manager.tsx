@@ -30,7 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
 import type { DirListing, FileContent, FileEntry } from "@/server/files";
 import { READ_LIMIT, UPLOAD_LIMIT, joinPath, normalizePath } from "@/server/files-paths";
-import { OFF_MESSAGES, PERMISSIONS_HREF } from "@/lib/container-permissions";
+import { LIVE_RELEASE_NOTICE, OFF_MESSAGES, PERMISSIONS_HREF } from "@/lib/container-permissions";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -40,9 +40,11 @@ type Props = {
   /** From the address (?path=). Checked by the server like any other path. */
   initialPath: string;
   /**
-   * Whether the owner allows file changes on this project's server. When off,
-   * browsing, previews and downloads still work and every control that
-   * changes something is hidden. The server refuses the changes as well.
+   * Whether the owner allows file changes on this project's server. Off by
+   * default. When off, browsing, previews and downloads still work and every
+   * control that changes something is hidden. The server refuses the changes
+   * as well. Even when on, only shared/ can change: current/ (the live
+   * release) is read only, and the server refuses changes there too.
    */
   fileWrites?: boolean;
 };
@@ -66,7 +68,7 @@ function safePath(raw: string): string {
   }
 }
 
-export function FileManager({ projectId, slug, projectName, initialPath, fileWrites = true }: Props) {
+export function FileManager({ projectId, slug, projectName, initialPath, fileWrites = false }: Props) {
   const base = `/api/projects/${projectId}/files`;
   const pageBase = `/projects/${slug}/files`;
 
@@ -124,8 +126,9 @@ export function FileManager({ projectId, slug, projectName, initialPath, fileWri
     entriesRef.current = entries;
   }, [entries]);
   const scope = listing?.scope ?? null;
-  // Writable needs both: the folder allows changes, and the owner has not switched them off.
+  // Writable needs both: the folder allows changes (shared/ only), and the owner has turned them on.
   const changesOff = !fileWrites;
+  const liveRelease = scope?.liveRelease ?? false;
   const writable = (scope?.writable ?? false) && fileWrites;
 
   // ---- Preview -------------------------------------------------------------
@@ -257,7 +260,7 @@ export function FileManager({ projectId, slug, projectName, initialPath, fileWri
     setSaveError(null);
     try {
       await fileSaveText(base, edit.path, edit.draft);
-      toast.success("Saved", scope?.temporary ? "This change lasts until the next deploy." : undefined);
+      toast.success("Saved");
       leaveEdit();
       setReloadKey((k) => k + 1);
     } catch (e) {
@@ -281,7 +284,7 @@ export function FileManager({ projectId, slug, projectName, initialPath, fileWri
       return;
     }
     if (!writable) {
-      toast.info("This location is read only", "Files in shared/ and current/ can be changed.");
+      toast.info("This location is read only", "Only files in shared/ can be changed.");
       return;
     }
     guard(() => openDialog({ kind: "delete", entry }));
@@ -293,7 +296,7 @@ export function FileManager({ projectId, slug, projectName, initialPath, fileWri
       return;
     }
     if (!writable) {
-      toast.info("This location is read only", "Files in shared/ and current/ can be changed.");
+      toast.info("This location is read only", "Only files in shared/ can be changed.");
       return;
     }
     guard(() => openDialog({ kind: "rename", entry }));
@@ -397,7 +400,7 @@ export function FileManager({ projectId, slug, projectName, initialPath, fileWri
       return;
     }
     if (!writable) {
-      toast.info("Uploads are not allowed here", "Open shared/ or current/ first.");
+      toast.info("Uploads are not allowed here", "Open shared/ first.");
       return;
     }
     const dir = path;
@@ -452,10 +455,10 @@ export function FileManager({ projectId, slug, projectName, initialPath, fileWri
         description={
           changesOff
             ? `Browse and download files in ${projectName}'s folder on your container.`
-            : `Browse and edit files in ${projectName}'s folder on your container.`
+            : `Browse and download files in ${projectName}'s folder on your container. Files in shared/ can be changed.`
         }
         actions={
-          changesOff ? undefined : (
+          changesOff || liveRelease ? undefined : (
             <div className={cn("flex flex-wrap items-center gap-2 max-sm:w-full max-sm:[&>*]:flex-1", hideOnPhonePreview)}>
               <Button
                 ref={mkdirButton}
@@ -521,36 +524,38 @@ export function FileManager({ projectId, slug, projectName, initialPath, fileWri
         </nav>
 
         {changesOff ? (
-          <Alert
-            tone="note"
-            action={
-              <Link href={PERMISSIONS_HREF} className={cn(buttonVariants({ size: "sm", variant: "outline" }))}>
-                Go to Account
-              </Link>
-            }
-          >
-            {OFF_MESSAGES.fileWrites} You can still browse, read and download files. Turn changes back on in
-            Account, under Container permissions.
+          <Alert tone="note" title={OFF_MESSAGES.fileWrites}>
+            <p>
+              File changes are off by default, because a change to a file can change the code your app runs. You can
+              still browse, read and download files. To turn them on, open Account, find Container permissions and
+              type your Nest username to confirm.
+            </p>
+            <Link
+              href={PERMISSIONS_HREF}
+              className={cn(buttonVariants({ size: "sm", variant: "outline" }), "mt-3 max-sm:w-full")}
+            >
+              Go to Account
+            </Link>
           </Alert>
-        ) : scope?.temporary ? (
-          <Alert
-            tone="warning"
-            title="Changes here last until the next deploy."
-            action={
-              <Button size="sm" variant="outline" onClick={() => navigate("shared")}>
+        ) : null}
+
+        {liveRelease ? (
+          <Alert tone="note" title={LIVE_RELEASE_NOTICE.title}>
+            <p>{LIVE_RELEASE_NOTICE.body}</p>
+            {changesOff ? null : (
+              <Button size="sm" variant="outline" className="mt-3 max-sm:w-full" onClick={() => navigate("shared")}>
                 <FolderSimpleIcon /> Open shared/
               </Button>
-            }
-          >
-            The live release is replaced on every deploy. Files that must stay belong in shared/.
+            )}
           </Alert>
-        ) : scope && path === "" ? (
+        ) : !changesOff && scope && path === "" ? (
           <p className="text-caption text-muted-foreground">
-            New files and folders go in shared/ (kept across deploys) or current/ (until the next deploy).
+            New files and folders go in shared/, which is kept across deploys. current/ is the live release and is
+            read only.
           </p>
-        ) : scope && !scope.writable ? (
+        ) : !changesOff && scope && !scope.writable ? (
           <Alert tone="note">
-            Read only. {scope.area === "releases" ? "Each deploy adds a release; the newest one is live as current/." : "Use shared/ for files that last and current/ for temporary changes."}
+            Read only. {scope.area === "releases" ? "Each deploy adds a release; the newest one is live as current/." : "Only files in shared/ can be changed."}
           </Alert>
         ) : null}
 
@@ -647,7 +652,7 @@ export function FileManager({ projectId, slug, projectName, initialPath, fileWri
             saving={saving}
             saveError={saveError}
             modifiable={writable}
-            temporary={scope?.temporary ?? false}
+            liveRelease={liveRelease}
             downloadHref={selectedPath ? fileHref(projectId, "download", selectedPath) : null}
             headingRef={headingRef}
             onBack={() =>

@@ -1,7 +1,7 @@
 /**
  * Pure helpers for the per-server container permissions: the switch names,
  * their plain-language descriptions, the defaults, and the typed confirmation
- * for turning the terminal on. No server or browser code, so it is safe to
+ * for turning the terminal or file changes on. No server or browser code, so it is safe to
  * import anywhere and easy to test.
  *
  * The server enforces these switches. The UI only hides or disables what is
@@ -19,10 +19,13 @@ export type PermissionKey = keyof ContainerPermissions;
 /** Order the switches are shown in. */
 export const PERMISSION_KEYS: readonly PermissionKey[] = ["terminal", "fileWrites", "orphanRemoval"];
 
-/** The terminal is a root shell, so it is off until the owner turns it on. */
+/**
+ * The terminal is a root shell, and a file change can change the code the app
+ * runs the next time it restarts, so both are off until the owner turns them on.
+ */
 export const DEFAULT_PERMISSIONS: Readonly<ContainerPermissions> = {
   terminal: false,
-  fileWrites: true,
+  fileWrites: false,
   orphanRemoval: true,
 };
 
@@ -36,7 +39,7 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
   terminal:
     "A shell on your container, running as root. Off by default. Anyone with access to your Nest Deploy account can use it while it is on.",
   fileWrites:
-    "Create, edit, rename, delete and upload files in each project's folder. On by default.",
+    "Create, edit, rename, delete and upload files in each project's shared/ folder. Off by default, because a file change can change the code your app runs the next time it restarts, which makes this close to terminal access. The live release (current/) is always read only.",
   orphanRemoval:
     "Stop and remove services and folders that no project uses any more. On by default. Removal still asks you to confirm each time.",
 };
@@ -47,9 +50,40 @@ export const PERMISSION_STATE: Record<"on" | "off", string> = { on: "On", off: "
 /** Shown where a feature is off. */
 export const OFF_MESSAGES: Record<PermissionKey, string> = {
   terminal: "The terminal is turned off for this server.",
-  fileWrites: "Changes are turned off for this server.",
+  fileWrites: "File changes are turned off for this server.",
   orphanRemoval: "Removing leftovers is turned off for this server.",
 };
+
+/** The words in the confirmation dialog for turning one of those switches on. */
+export type EnableCopy = { title: string; description: (serverLabel: string) => string; button: string };
+
+export const ENABLE_COPY: Record<"terminal" | "fileWrites", EnableCopy> = {
+  terminal: {
+    title: "Turn on the terminal?",
+    description: (serverLabel) =>
+      `This opens a shell on ${serverLabel} that runs as root. Anyone who can sign in to your Nest Deploy account can use it while it is on. You can turn it off again here at any time.`,
+    button: "Turn on terminal",
+  },
+  fileWrites: {
+    title: "Turn on file changes?",
+    description: (serverLabel) =>
+      `This lets Nest Deploy create, edit, rename, delete and upload files in the shared/ folder of each project on ${serverLabel}. A file change can change the code your app runs the next time it restarts, so treat this like terminal access. The live release (current/) stays read only. Anyone who can sign in to your Nest Deploy account can change files while this is on. You can turn it off again here at any time.`,
+    button: "Turn on file changes",
+  },
+};
+
+/** The switches that are confirmed by typing the Nest username before they turn on. */
+export type TypedConfirmKey = keyof typeof ENABLE_COPY;
+
+export function needsTypedConfirm(key: PermissionKey): key is TypedConfirmKey {
+  return Object.hasOwn(ENABLE_COPY, key);
+}
+
+/** Shown in the file manager inside current/, whatever the switch says. */
+export const LIVE_RELEASE_NOTICE = {
+  title: "current/ is the live release and is read only.",
+  body: "Changing it here would change the code your app runs. Make code changes in your repository and deploy. Files that must last, like data or settings, belong in shared/.",
+} as const;
 
 /** Where the switches live. The id is the heading of the Account section. */
 export const PERMISSIONS_HREF = "/account#container-permissions-heading";
@@ -86,7 +120,11 @@ export type TypedConfirm = {
   matches: (typed: string) => boolean;
 };
 
-/** The typed confirmation for turning the terminal on for one server. */
+/**
+ * The typed confirmation for turning the terminal or file changes on for one
+ * server. This is a guard in the UI only; the API accepts the owner's request
+ * without it, and turning a switch off never asks.
+ */
 export function typedConfirmFor(serverName: string): TypedConfirm {
   const expected = serverName.trim();
   return {

@@ -18,13 +18,16 @@ import { Input } from "@/components/ui/input";
 import { PixelLoader } from "@/components/ui/pixel-loader";
 import { toast } from "@/components/ui/toast";
 import {
+  ENABLE_COPY,
   PERMISSION_DESCRIPTIONS,
   PERMISSION_KEYS,
   PERMISSION_LABELS,
   PERMISSION_STATE,
+  needsTypedConfirm,
   normalizePermissions,
   typedConfirmFor,
   type ContainerPermissions,
+  type EnableCopy,
   type PermissionKey,
 } from "@/lib/container-permissions";
 import { cn } from "@/lib/utils";
@@ -33,7 +36,7 @@ export type PermissionServer = {
   id: string;
   /** What the person knows it by, for example sam-r.hackclub.app. */
   label: string;
-  /** The Nest username. Typed to confirm turning the terminal on. */
+  /** The Nest username. Typed to confirm turning the terminal or file changes on. */
   nestUsername: string;
   permissions: ContainerPermissions;
 };
@@ -58,8 +61,8 @@ function toastFor(key: PermissionKey, value: boolean, label: string) {
 
 /**
  * The Account page section: one card per connected server, three switches in
- * each. Every switch saves on its own, straight away. Turning the terminal on
- * asks you to type the server's Nest username first.
+ * each. Every switch saves on its own, straight away. Turning the terminal or
+ * file changes on asks you to type the server's Nest username first.
  */
 export function ContainerPermissionsSection({ servers }: { servers: PermissionServer[] }) {
   const [state, setState] = useState<Record<string, ContainerPermissions>>(() =>
@@ -73,7 +76,8 @@ export function ContainerPermissionsSection({ servers }: { servers: PermissionSe
       </h2>
       <p className="mt-1 max-w-[62ch] text-muted-foreground">
         Choose which features can reach each of your containers. A feature that is off is blocked by Nest Deploy
-        itself, not only hidden from the page.
+        itself, not only hidden from the page. The terminal and file changes are off until you turn them on, and
+        turning them on asks you to type the server&apos;s Nest username.
       </p>
 
       {servers.length === 0 ? (
@@ -173,8 +177,8 @@ function PermissionRow({
   }
 
   async function change(next: boolean) {
-    // Turning the terminal on goes through the typed confirmation first.
-    if (permKey === "terminal" && next) {
+    // Turning the terminal or file changes on goes through the typed confirmation first.
+    if (needsTypedConfirm(permKey) && next) {
       setError(null);
       setConfirmOpen(true);
       return;
@@ -255,8 +259,9 @@ function PermissionRow({
         </Alert>
       ) : null}
 
-      {permKey === "terminal" ? (
-        <EnableTerminalDialog
+      {needsTypedConfirm(permKey) ? (
+        <EnableDialog
+          copy={ENABLE_COPY[permKey]}
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
           serverLabel={server.label}
@@ -270,11 +275,13 @@ function PermissionRow({
 }
 
 /**
- * Turning the terminal on gives a root shell, so the switch only moves once
- * the person has typed the server's Nest username. The confirm button stays
- * disabled until it matches (exactly, ignoring spaces at either end).
+ * Turning the terminal on gives a root shell, and turning file changes on lets
+ * files change the code the app runs, so the switch only moves once the person
+ * has typed the server's Nest username. The confirm button stays disabled
+ * until it matches (exactly, ignoring spaces at either end).
  */
-function EnableTerminalDialog({
+function EnableDialog({
+  copy,
   open,
   onOpenChange,
   serverLabel,
@@ -282,6 +289,7 @@ function EnableTerminalDialog({
   finalFocus,
   onConfirm,
 }: {
+  copy: EnableCopy;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   serverLabel: string;
@@ -326,11 +334,8 @@ function EnableTerminalDialog({
         initialFocus={() => document.getElementById(fieldId) ?? true}
         finalFocus={finalFocus}
       >
-        <AlertDialogTitle>Turn on the terminal?</AlertDialogTitle>
-        <AlertDialogDescription>
-          This opens a shell on {serverLabel} that runs as root. Anyone who can sign in to your Nest Deploy
-          account can use it while it is on. You can turn it off again here at any time.
-        </AlertDialogDescription>
+        <AlertDialogTitle>{copy.title}</AlertDialogTitle>
+        <AlertDialogDescription>{copy.description(serverLabel)}</AlertDialogDescription>
         <form
           className="mt-4"
           onSubmit={(e) => {
@@ -366,7 +371,7 @@ function EnableTerminalDialog({
               Cancel
             </AlertDialogClose>
             <Button type="submit" loading={pending} disabled={!ok}>
-              {pending ? "Turning on…" : "Turn on terminal"}
+              {pending ? "Turning on…" : copy.button}
             </Button>
           </AlertDialogFooter>
         </form>

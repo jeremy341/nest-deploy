@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  LIVE_RELEASE_MESSAGE,
   PathError,
   assertModifiable,
   assertSimpleName,
@@ -84,15 +85,16 @@ describe("normalizePath", () => {
 });
 
 describe("scopeOf", () => {
-  it("treats shared as writable and permanent", () => {
-    expect(scopeOf("shared")).toMatchObject({ area: "shared", writable: true, modifiable: false, temporary: false });
-    expect(scopeOf("shared/data")).toMatchObject({ area: "shared", writable: true, modifiable: true, temporary: false });
-    expect(scopeOf("shared/data/x.db")).toMatchObject({ modifiable: true, temporary: false, depth: 3 });
+  it("treats shared as the only writable area", () => {
+    expect(scopeOf("shared")).toMatchObject({ area: "shared", writable: true, modifiable: false, liveRelease: false });
+    expect(scopeOf("shared/data")).toMatchObject({ area: "shared", writable: true, modifiable: true, liveRelease: false });
+    expect(scopeOf("shared/data/x.db")).toMatchObject({ modifiable: true, liveRelease: false, depth: 3 });
   });
 
-  it("treats current as writable but temporary", () => {
-    expect(scopeOf("current")).toMatchObject({ area: "current", writable: true, modifiable: false, temporary: true });
-    expect(scopeOf("current/.env")).toMatchObject({ area: "current", modifiable: true, temporary: true });
+  it("treats current, the live release, as read only", () => {
+    expect(scopeOf("current")).toMatchObject({ area: "current", writable: false, modifiable: false, liveRelease: true });
+    expect(scopeOf("current/.env")).toMatchObject({ area: "current", writable: false, modifiable: false, liveRelease: true });
+    expect(scopeOf("current/a/b/c.js")).toMatchObject({ writable: false, modifiable: false, liveRelease: true });
   });
 
   it("treats everything else as read only", () => {
@@ -116,9 +118,29 @@ describe("scopeOf", () => {
 });
 
 describe("assertModifiable", () => {
-  it("allows files and folders inside shared and current", () => {
+  it("allows files and folders inside shared", () => {
     expect(assertModifiable("shared/a").path).toBe("shared/a");
-    expect(assertModifiable("current/a/b").temporary).toBe(true);
+    expect(assertModifiable("shared/a/b").liveRelease).toBe(false);
+  });
+
+  it("refuses everything inside current/ with 403 read_only and a message about the live release", () => {
+    for (const bad of ["current", "current/a", "current/a/b/c.js", "current/.env", "current/shared"]) {
+      try {
+        assertModifiable(bad);
+        expect.unreachable(bad);
+      } catch (e) {
+        expect(e, bad).toBeInstanceOf(PathError);
+        expect((e as PathError).status).toBe(403);
+        expect((e as PathError).code).toBe("read_only");
+        expect((e as PathError).message).toBe(LIVE_RELEASE_MESSAGE);
+      }
+    }
+    expect(LIVE_RELEASE_MESSAGE).toMatch(/live release/);
+    expect(LIVE_RELEASE_MESSAGE).toMatch(/read only/);
+  });
+
+  it("does not let traversal reach current/ from shared/", () => {
+    expect(() => assertModifiable("shared/../current/a")).toThrow(/\.\./);
   });
 
   it("refuses the fixtures, read-only areas and anything outside", () => {
@@ -172,11 +194,12 @@ describe("symlink containment on resolved paths", () => {
     expect(isInsideRoot(root, "/")).toBe(false);
   });
 
-  it("allows writes only to shared and release folders once links are resolved", () => {
+  it("allows writes only to shared once links are resolved", () => {
     expect(isWritableReal(root, `${root}/shared`)).toBe(true);
     expect(isWritableReal(root, `${root}/shared/x/y`)).toBe(true);
-    expect(isWritableReal(root, `${root}/releases/abc`)).toBe(true);
-    expect(isWritableReal(root, `${root}/releases/abc/src/a.js`)).toBe(true);
+    // current/ is a link to a release folder: the live code can never be a write target.
+    expect(isWritableReal(root, `${root}/releases/abc`)).toBe(false);
+    expect(isWritableReal(root, `${root}/releases/abc/src/a.js`)).toBe(false);
     // A link in shared/ that points at these must not become a way to write there.
     expect(isWritableReal(root, root)).toBe(false);
     expect(isWritableReal(root, `${root}/releases`)).toBe(false);

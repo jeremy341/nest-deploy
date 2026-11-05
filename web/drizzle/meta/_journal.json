@@ -57,6 +57,13 @@
       "when": 1793879991808,
       "tag": "0007_true_kingpin",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793889741098,
+      "tag": "0008_exotic_terrax",
+      "breakpoints": true
     }
   ]
 }

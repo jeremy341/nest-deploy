@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_PERMISSIONS,
+  ENABLE_COPY,
+  LIVE_RELEASE_NOTICE,
   OFF_MESSAGES,
   PERMISSION_DESCRIPTIONS,
   PERMISSION_KEYS,
   PERMISSION_LABELS,
+  needsTypedConfirm,
   normalizePermissions,
   permissionsOrDefault,
   typedConfirmFor,
@@ -68,6 +71,11 @@ describe("normalizePermissions", () => {
   it("keeps real booleans and defaults the rest", () => {
     expect(normalizePermissions({ terminal: true })).toEqual({
       terminal: true,
+      fileWrites: false,
+      orphanRemoval: true,
+    });
+    expect(normalizePermissions({ fileWrites: true })).toEqual({
+      terminal: false,
       fileWrites: true,
       orphanRemoval: true,
     });
@@ -102,8 +110,43 @@ describe("permissionsOrDefault", () => {
 });
 
 describe("copy", () => {
-  it("defaults the terminal off and the others on", () => {
-    expect(DEFAULT_PERMISSIONS).toEqual({ terminal: false, fileWrites: true, orphanRemoval: true });
+  it("defaults the terminal and file changes off, and leftover removal on", () => {
+    expect(DEFAULT_PERMISSIONS).toEqual({ terminal: false, fileWrites: false, orphanRemoval: true });
+  });
+
+  it("falls back to file changes off when nothing usable was loaded", () => {
+    expect(normalizePermissions({}).fileWrites).toBe(false);
+    expect(normalizePermissions({ fileWrites: "true" }).fileWrites).toBe(false);
+  });
+
+  it("describes file changes as off by default, able to change the running code, with a read-only live release", () => {
+    const d = PERMISSION_DESCRIPTIONS.fileWrites;
+    expect(d).toMatch(/Off by default/);
+    expect(d).toMatch(/change the code your app runs/);
+    expect(d).toContain("current/) is always read only");
+    expect(d).not.toMatch(/On by default/);
+    expect(OFF_MESSAGES.fileWrites).toMatch(/^File changes are turned off/);
+    expect(LIVE_RELEASE_NOTICE.title).toMatch(/live release/);
+    expect(LIVE_RELEASE_NOTICE.title).toMatch(/read only/);
+    expect(LIVE_RELEASE_NOTICE.body).toContain("shared/");
+  });
+
+  it("asks for the typed Nest username for the terminal and for file changes, not for leftovers", () => {
+    expect(needsTypedConfirm("terminal")).toBe(true);
+    expect(needsTypedConfirm("fileWrites")).toBe(true);
+    expect(needsTypedConfirm("orphanRemoval")).toBe(false);
+  });
+
+  it("words the file changes confirmation around the running code and a read-only live release", () => {
+    const copy = ENABLE_COPY.fileWrites;
+    const text = copy.description("sam-r.hackclub.app");
+    expect(copy.title).toBe("Turn on file changes?");
+    expect(copy.button).toBe("Turn on file changes");
+    expect(text).toContain("sam-r.hackclub.app");
+    expect(text).toMatch(/change the code your app runs/);
+    expect(text).toMatch(/terminal access/);
+    expect(text).toContain("current/) stays read only");
+    expect(ENABLE_COPY.terminal.description("x")).toMatch(/root/);
   });
 
   it("has a label, description and off message for every switch", () => {
@@ -119,6 +162,9 @@ describe("copy", () => {
       ...Object.values(PERMISSION_LABELS),
       ...Object.values(PERMISSION_DESCRIPTIONS),
       ...Object.values(OFF_MESSAGES),
+      ...Object.values(ENABLE_COPY).flatMap((c) => [c.title, c.description("x"), c.button]),
+      LIVE_RELEASE_NOTICE.title,
+      LIVE_RELEASE_NOTICE.body,
     ].join(" ");
     expect(all).not.toMatch(/[–—]/);
   });

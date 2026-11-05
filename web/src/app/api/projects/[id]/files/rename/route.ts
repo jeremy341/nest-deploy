@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 const input = z.object({ from: z.string().max(2000), to: z.string().max(2000) });
 
-/** Rename or move a file or folder within shared/ and current/. */
+/** Rename or move a file or folder within shared/. current/ is the live release and is refused (403 read_only). */
 export const POST = handle<Ctx>(async (req, { params }) => {
   const user = await authed();
   const { id } = await params;

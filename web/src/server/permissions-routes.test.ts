@@ -1,4 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
+import { migrate } from "drizzle-orm/libsql/migrator";
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { deleteAccount, revokeOtherSessions, revokeSession } from "@/server/account";
@@ -127,7 +133,8 @@ beforeEach(async () => {
   vi.mocked(withServerSession).mockReset();
   vi.mocked(withServerSession).mockImplementation(async (_s, fn) => fn(sshSession as never));
   vi.mocked(getCurrentUser).mockResolvedValue(sam as never);
-  // Known starting point for every test.
+  // Known starting point for every test. File changes are off by default, so the
+  // tests that exercise them turn them on here, the way an owner would.
   for (const [user, server] of [
     [sam, samServer],
     [sam, samOtherServer],
@@ -142,6 +149,81 @@ const closeAudits = async (userId: string) =>
     .filter((r) => r.action === "terminal.close")
     .map((r) => JSON.parse(r.meta ?? "{}") as { reason: string });
 
+describe("migration 0008: file changes off", () => {
+  const drizzleDir = path.join(process.cwd(), "drizzle");
+  let work: string;
+  beforeAll(() => {
+    work = mkdtempSync(path.join(tmpdir(), "nd-mig-"));
+  });
+  afterAll(() => {
+    try {
+      rmSync(work, { recursive: true, force: true });
+    } catch {
+      /* best effort on Windows */
+    }
+  });
+
+  it("switches existing servers off, keeps every other row, and makes the column default off", async () => {
+    // A copy of the migrations up to 0007, to put a database in the state it had before.
+    const journal = JSON.parse(readFileSync(path.join(drizzleDir, "meta", "_journal.json"), "utf8")) as {
+      entries: { idx: number; tag: string }[];
+    };
+    const before = path.join(work, "before");
+    mkdirSync(path.join(before, "meta"), { recursive: true });
+    const older = journal.entries.filter((e) => e.idx < 8);
+    for (const e of older) copyFileSync(path.join(drizzleDir, `${e.tag}.sql`), path.join(before, `${e.tag}.sql`));
+    writeFileSync(path.join(before, "meta", "_journal.json"), JSON.stringify({ ...journal, entries: older }));
+    expect(readdirSync(drizzleDir).some((f) => f.startsWith("0008_"))).toBe(true);
+
+    const client = createClient({ url: `file:${path.join(work, "m.db").replace(/\\/g, "/")}` });
+    try {
+      await client.execute("PRAGMA foreign_keys = ON");
+      const db = drizzle(client);
+      await migrate(db, { migrationsFolder: before });
+      const column = async () =>
+        (await client.execute("PRAGMA table_info(servers)")).rows.find((r) => r.name === "allow_file_writes");
+      expect(String((await column())?.dflt_value)).toBe("true");
+
+      await client.execute("INSERT INTO users (id,hack_club_id,name,created_at) VALUES ('u','h','n',1)");
+      const server = (id: string, nest: string, writes: number) =>
+        client.execute({
+          sql: "INSERT INTO servers (id,user_id,nest_username,host,public_key,private_key_enc,key_fingerprint,created_at,allow_file_writes) VALUES (?,'u',?,'h','p','e','f',1,?)",
+          args: [id, nest, writes],
+        });
+      await server("s1", "one", 1);
+      await server("s2", "two", 1);
+      await client.execute(
+        "INSERT INTO projects (id,user_id,server_id,slug,name,repo_url,runtime,port,created_at,updated_at) VALUES ('p','u','s1','a','a','x','node',3000,1,1)"
+      );
+
+      await migrate(db, { migrationsFolder: drizzleDir });
+
+      const writes = (await client.execute("SELECT id, allow_file_writes a FROM servers ORDER BY id")).rows.map((r) => [r.id, r.a]);
+      expect(writes).toEqual([["s1", 0], ["s2", 0]]);
+      // No cascade: the project that points at a server is still there.
+      expect(Number((await client.execute("SELECT count(*) c FROM projects")).rows[0].c)).toBe(1);
+      expect((await client.execute("PRAGMA foreign_key_check")).rows).toHaveLength(0);
+      expect(String((await column())?.dflt_value)).toBe("false");
+      expect(Number((await column())?.notnull)).toBe(1);
+
+      // A row that does not mention the column gets the new default: off.
+      await client.execute(
+        "INSERT INTO servers (id,user_id,nest_username,host,public_key,private_key_enc,key_fingerprint,created_at) VALUES ('s3','u','three','h','p','e','f',1)"
+      );
+      expect((await client.execute("SELECT allow_file_writes a FROM servers WHERE id='s3'")).rows[0].a).toBe(0);
+    } finally {
+      client.close();
+    }
+  });
+
+  it("matches the schema: the column is not null and defaults to off", () => {
+    const col = schema.servers.allowFileWrites;
+    expect(col.notNull).toBe(true);
+    expect(col.default).toBe(false);
+    expect(schema.servers.allowTerminal.default).toBe(false);
+  });
+});
+
 describe("permissions API", () => {
   it("answers 401 when signed out", async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(null);
@@ -149,12 +231,40 @@ describe("permissions API", () => {
     expect((await putPermissionsRoute(json("/x", "PUT", { terminal: true }), idCtx(samServer))).status).toBe(401);
   });
 
-  it("returns the defaults: terminal off, file writes on, leftover removal on", async () => {
+  it("returns the defaults: terminal off, file changes off, leftover removal on", async () => {
     const fresh = (await createServer(sam.id, "sam-p3")).id;
     const res = await getPermissionsRoute(json("/x", "GET"), idCtx(fresh));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ permissions: { terminal: false, fileWrites: true, orphanRemoval: true } });
+    expect(await res.json()).toEqual({ permissions: { terminal: false, fileWrites: false, orphanRemoval: true } });
     await ctx.db.delete(schema.servers).where(eq(schema.servers.id, fresh));
+  });
+
+  it("keeps file changes off for a new server, and every change route refuses with 403 disabled before SSH", async () => {
+    const fresh = (await createServer(sam.id, "sam-p4")).id;
+    const base = { repoUrl: "https://github.com/sam/app.git", runtime: "node" as const };
+    const project = (await createProject(sam.id, { ...base, serverId: fresh, name: "Fresh", slug: "fresh", port: 3010 })).id;
+    const c = () => idCtx(project);
+    const results = [
+      await write(new NextRequest(fileUrl("write", { path: "shared/a.txt" }), { method: "POST", body: "x" }), c()),
+      await mkdir(json("/x", "POST", { path: "shared/d" }), c()),
+      await rename(json("/x", "POST", { from: "shared/a", to: "shared/b" }), c()),
+      await remove(json("/x", "POST", { path: "shared/a" }), c()),
+    ];
+    expect(results.map((r) => r.status)).toEqual([403, 403, 403, 403]);
+    for (const r of results) expect((await bodyOf(r)).error?.code).toBe("disabled");
+    expect(sshWasUsed()).toBe(false);
+    await ctx.db.delete(schema.projects).where(eq(schema.projects.id, project));
+    await ctx.db.delete(schema.servers).where(eq(schema.servers.id, fresh));
+  });
+
+  it("lets the signed-in owner turn file changes on with a plain request (the typed confirmation is a UI guard), and nobody else", async () => {
+    const on = await putPermissionsRoute(json("/x", "PUT", { fileWrites: true }), idCtx(samServer));
+    expect(on.status).toBe(200);
+    expect((await bodyOf(on)).permissions?.fileWrites).toBe(true);
+    vi.mocked(getCurrentUser).mockResolvedValue(kim as never);
+    expect((await putPermissionsRoute(json("/x", "PUT", { fileWrites: true }), idCtx(samServer))).status).toBe(404);
+    vi.mocked(getCurrentUser).mockResolvedValue(null);
+    expect((await putPermissionsRoute(json("/x", "PUT", { fileWrites: true }), idCtx(samServer))).status).toBe(401);
   });
 
   it("answers 404 for another user's server and for one that does not exist, and changes nothing", async () => {
@@ -290,6 +400,19 @@ describe("enforcement", () => {
     await setPermissions(sam.id, samOtherServer, { terminal: true });
     expect((await openTerminal(json("/x", "POST", {}), termCtx(samProject))).status).toBe(403);
     expect((await openTerminal(json("/x", "POST", {}), termCtx(samOtherProject))).status).toBe(201);
+  });
+
+  it("refuses write, mkdir, rename and delete in current/ with 403 read_only even when file changes are on", async () => {
+    const c = () => idCtx(samProject);
+    const results = [
+      await write(new NextRequest(fileUrl("write", { path: "current/a.js", overwrite: "1" }), { method: "POST", body: "x" }), c()),
+      await mkdir(json("/x", "POST", { path: "current/d" }), c()),
+      await rename(json("/x", "POST", { from: "current/a", to: "current/b" }), c()),
+      await remove(json("/x", "POST", { path: "current/a" }), c()),
+    ];
+    expect(results.map((r) => r.status)).toEqual([403, 403, 403, 403]);
+    for (const r of results) expect((await bodyOf(r)).error?.code).toBe("read_only");
+    expect(sshWasUsed()).toBe(false);
   });
 
   it("refuses all four file writes with 403 while file changes are off, and still reads", async () => {

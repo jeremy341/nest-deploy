@@ -16,6 +16,7 @@ import {
   writeFile,
   type FileSession,
 } from "@/server/files";
+import { LIVE_RELEASE_MESSAGE } from "@/server/files-paths";
 import { HttpError } from "@/server/http";
 import { NestSession, shellQuote } from "@/server/ssh/connection";
 import { generateServerKey } from "@/server/ssh/keys";
@@ -90,8 +91,8 @@ describe("bad paths never reach the container", () => {
     }
   });
 
-  it("refuses writes outside shared/ and current/ before any SSH call", async () => {
-    for (const path of ["", "shared", "current", "releases/abc/a", "incoming/x", "package.json"]) {
+  it("refuses writes outside shared/ before any SSH call", async () => {
+    for (const path of ["", "shared", "current", "current/a.js", "releases/abc/a", "incoming/x", "package.json"]) {
       const { session, exec } = recorder();
       expect(await status(writeFile(session, ROOT, path, Buffer.from("x"), true)), path).toMatchObject({
         status: 403,
@@ -101,6 +102,25 @@ describe("bad paths never reach the container", () => {
       expect(await status(deletePath(session, ROOT, path, true))).toMatchObject({ status: 403 });
       expect(await status(renamePath(session, ROOT, path, "shared/x"))).toMatchObject({ status: 403 });
       expect(exec).not.toHaveBeenCalled();
+    }
+  });
+
+  it("refuses write, mkdir, rename and delete in current/ with the live release message, before any SSH call", async () => {
+    const live = { status: 403, code: "read_only", message: LIVE_RELEASE_MESSAGE };
+    const messageOf = async (p: Promise<unknown>) => {
+      const err: unknown = await p.catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(HttpError);
+      const http = err as HttpError;
+      return { status: http.status, code: http.code, message: http.message };
+    };
+    for (const path of ["current/a.js", "current/deep/b.js", "current/.env"]) {
+      const { session, exec } = recorder();
+      expect(await messageOf(writeFile(session, ROOT, path, Buffer.from("x"), true)), path).toEqual(live);
+      expect(await messageOf(makeDir(session, ROOT, path)), path).toEqual(live);
+      expect(await messageOf(deletePath(session, ROOT, path, true)), path).toEqual(live);
+      expect(await messageOf(renamePath(session, ROOT, path, "shared/x")), path).toEqual(live);
+      expect(await messageOf(renamePath(session, ROOT, "shared/x", path)), path).toEqual(live);
+      expect(exec, path).not.toHaveBeenCalled();
     }
   });
 
@@ -122,7 +142,8 @@ describe("bad paths never reach the container", () => {
     const { session, exec } = recorder({ code: 0, stdout: "", stderr: "" });
     await listDir(session, ROOT, "");
     await listDir(session, ROOT, "releases");
-    expect(exec).toHaveBeenCalledTimes(2);
+    await listDir(session, ROOT, "current");
+    expect(exec).toHaveBeenCalledTimes(3);
   });
 });
 
@@ -267,6 +288,7 @@ ln -s "$HOME/outside.txt" $r/shared/escape-file
 ln -s "$HOME/outside-dir" $r/shared/escape-dir
 ln -s data $r/shared/inside
 ln -s ../releases $r/shared/to-releases
+ln -s ../current $r/shared/to-current
 ln -s nowhere $r/shared/dead
 `);
   }, 60_000);
@@ -298,10 +320,13 @@ ln -s nowhere $r/shared/dead
     expect(res.entries.find((e) => e.name === "a.txt")).toMatchObject({ type: "file", size: 6 });
   });
 
-  it("follows current into the release, and reports it as temporary", async () => {
+  it("follows current into the release for reading, and reports it as the read-only live release", async () => {
     const res = await listDir(session, root, "current");
-    expect(res.scope).toMatchObject({ area: "current", writable: true, temporary: true });
+    expect(res.scope).toMatchObject({ area: "current", writable: false, liveRelease: true });
     expect(res.entries.map((e) => e.name)).toEqual(["src", "index.js"]);
+    const file = await readFile(session, root, "current/index.js");
+    expect(file).toMatchObject({ content: "console.log(1)" + String.fromCharCode(10), liveRelease: true, writable: false });
+    expect((await downloadFile(session, root, "current/index.js")).name).toBe("index.js");
   });
 
   it("refuses to follow links out of the project folder", async () => {
@@ -351,7 +376,7 @@ ln -s nowhere $r/shared/dead
 
   it("writes through a .partial file, with mode 644, and leaves nothing behind", async () => {
     const res = await writeFile(session, root, "shared/data/new.txt", Buffer.from("héllo\nwörld"), false);
-    expect(res).toEqual({ path: "shared/data/new.txt", temporary: false });
+    expect(res).toEqual({ path: "shared/data/new.txt" });
     expect(await text(`${root}/shared/data/new.txt`)).toBe("héllo\nwörld");
     expect((await session.exec(`stat -c %a '${root}/shared/data/new.txt'`)).stdout.trim()).toBe("644");
     expect(await exists(`${root}/shared/data/new.txt.partial`)).toBe(false);
@@ -383,10 +408,40 @@ ln -s nowhere $r/shared/dead
     expect((await session.exec(`cat '${mock.home}/outside.txt'`)).stdout).toBe("top-secret\n");
   });
 
-  it("writes under current/ into the live release and says it is temporary", async () => {
-    const res = await writeFile(session, root, "current/patched.txt", Buffer.from("tmp"), false);
-    expect(res.temporary).toBe(true);
-    expect(await text(`${root}/releases/r1/patched.txt`)).toBe("tmp");
+  it("refuses to write, create, rename or delete in current/, and leaves the live release alone", async () => {
+    expect(await status(writeFile(session, root, "current/patched.txt", Buffer.from("tmp"), false))).toMatchObject({ status: 403, code: "read_only" });
+    expect(await status(writeFile(session, root, "current/index.js", Buffer.from("evil"), true))).toMatchObject({ status: 403, code: "read_only" });
+    expect(await status(makeDir(session, root, "current/newdir"))).toMatchObject({ status: 403, code: "read_only" });
+    expect(await status(deletePath(session, root, "current/index.js", false))).toMatchObject({ status: 403, code: "read_only" });
+    expect(await status(renamePath(session, root, "current/index.js", "shared/index.js"))).toMatchObject({ status: 403, code: "read_only" });
+    expect(await exists(`${root}/releases/r1/patched.txt`)).toBe(false);
+    expect(await exists(`${root}/releases/r1/newdir`)).toBe(false);
+    expect(await text(`${root}/releases/r1/index.js`)).toBe("console.log(1)" + String.fromCharCode(10));
+  });
+
+  it("refuses on the container too: the scripts allow shared/ only, even if the path rules were bypassed", async () => {
+    const run = (script: string, args: string[], stdin?: Buffer) => session.exec(buildCommand(script, [root, ...args]), { stdin });
+    // Exit 21 is "read only". A release folder is where current/ points.
+    expect((await run(SCRIPTS.write, ["current/patched.txt", "0"], Buffer.from("x"))).code).toBe(21);
+    expect((await run(SCRIPTS.write, ["releases/r1/patched.txt", "0"], Buffer.from("x"))).code).toBe(21);
+    expect((await run(SCRIPTS.mkdir, ["current/newdir"])).code).toBe(21);
+    expect((await run(SCRIPTS.delete, ["current/index.js", "0"])).code).toBe(21);
+    expect((await run(SCRIPTS.rename, ["current/index.js", "shared/index.js"])).code).toBe(21);
+    expect((await run(SCRIPTS.rename, ["shared/data/a.txt", "current/a.txt"])).code).toBe(21);
+    // And the shared/ control still passes.
+    expect((await run(SCRIPTS.mkdir, ["shared/data/script-ok"])).code).toBe(0);
+    expect(await exists(`${root}/releases/r1/patched.txt`)).toBe(false);
+    expect(await exists(`${root}/releases/r1/newdir`)).toBe(false);
+    expect(await exists(`${root}/releases/r1/index.js`)).toBe(true);
+  });
+
+  it("will not reach the live release through a link in shared/", async () => {
+    expect(await status(writeFile(session, root, "shared/to-current/patched.txt", Buffer.from("x"), true))).toMatchObject({ status: 403, code: "read_only" });
+    expect(await status(makeDir(session, root, "shared/to-current/newdir"))).toMatchObject({ status: 403, code: "read_only" });
+    expect(await status(deletePath(session, root, "shared/to-current/index.js", false))).toMatchObject({ status: 403, code: "read_only" });
+    expect(await status(renamePath(session, root, "shared/data/a.txt", "shared/to-current/a.txt"))).toMatchObject({ status: 403, code: "read_only" });
+    expect(await exists(`${root}/releases/r1/patched.txt`)).toBe(false);
+    expect(await exists(`${root}/releases/r1/index.js`)).toBe(true);
   });
 
   it("will not write when the parent folder is missing", async () => {
@@ -423,10 +478,10 @@ ln -s nowhere $r/shared/dead
     expect(await text(`${root}/shared/data/sub/moved.txt`)).toBe("m");
     expect(await status(renamePath(session, root, "shared/data/sub/moved.txt", "shared/data/a.txt"))).toMatchObject({ status: 409, code: "exists" });
     expect(await status(renamePath(session, root, "shared/data/ghost", "shared/data/g2"))).toMatchObject({ status: 404 });
-    // Moving into a release folder is allowed and flagged.
-    const res = await renamePath(session, root, "shared/data/sub/moved.txt", "current/moved.txt");
-    expect(res.temporary).toBe(true);
-    expect(await exists(`${root}/releases/r1/moved.txt`)).toBe(true);
+    // Moving into the live release is refused, and the file stays where it was.
+    expect(await status(renamePath(session, root, "shared/data/sub/moved.txt", "current/moved.txt"))).toMatchObject({ status: 403, code: "read_only" });
+    expect(await exists(`${root}/releases/r1/moved.txt`)).toBe(false);
+    expect(await exists(`${root}/shared/data/sub/moved.txt`)).toBe(true);
   });
 
   it("renaming a link moves the link, not what it points at", async () => {

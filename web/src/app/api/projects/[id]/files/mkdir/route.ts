@@ -8,7 +8,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 const input = z.object({ path: z.string().max(2000) });
 
-/** Create a folder (one level) inside shared/ or current/. */
+/** Create a folder (one level) inside shared/. current/ is the live release and is refused (403 read_only). */
 export const POST = handle<Ctx>(async (req, { params }) => {
   const user = await authed();
   const { id } = await params;

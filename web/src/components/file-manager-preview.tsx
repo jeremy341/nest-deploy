@@ -36,7 +36,8 @@ type Props = {
   saveError: string | null;
   /** The folder is writable, so this file can be renamed and deleted. */
   modifiable: boolean;
-  temporary: boolean;
+  /** The file is in the live release (current/), which is read only. */
+  liveRelease: boolean;
   downloadHref: string | null;
   headingRef: React.Ref<HTMLHeadingElement>;
   onBack: () => void;
@@ -59,7 +60,7 @@ export function FilePreview({
   saving,
   saveError,
   modifiable,
-  temporary,
+  liveRelease,
   downloadHref,
   headingRef,
   onBack,
@@ -145,8 +146,10 @@ export function FilePreview({
             </>
           )}
         </div>
-        {edit && temporary ? (
-          <p className="mt-2 text-caption text-muted-foreground">This change lasts until the next deploy.</p>
+        {liveRelease ? (
+          <p className="mt-2 text-caption text-muted-foreground">
+            This file is in the live release, so it is read only. You can still read and download it.
+          </p>
         ) : null}
         {dirty && !saving ? (
           <p role="status" className="mt-2 text-caption font-medium">

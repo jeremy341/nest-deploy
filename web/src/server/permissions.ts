@@ -7,8 +7,15 @@ import { HttpError, notFound } from "@/server/http";
  * Per-server container permissions. Each switch is an opt-out for one of the
  * container features. The server enforces them; the UI only hides what is off.
  *
- * Defaults: the terminal is OFF until the owner turns it on (it is a root shell),
- * file writes and leftover removal are ON (both are confirmed in the UI).
+ * Defaults: the terminal and file changes are OFF until the owner turns them on.
+ * The terminal is a root shell, and a file write can change the code the app
+ * runs on its next restart, so file changes are close to terminal access.
+ * Leftover removal is ON (each removal is confirmed in the UI).
+ *
+ * Turning the terminal or file changes ON is confirmed in the UI by typing the
+ * server's Nest username. That confirmation is a UI guard only: this module
+ * and the permissions route let the signed-in owner (and nobody else) switch
+ * either on with a plain request. Turning a switch off never needs it.
  */
 export type ContainerPermission = "terminal" | "fileWrites" | "orphanRemoval";
 

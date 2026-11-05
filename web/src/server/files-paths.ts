@@ -5,9 +5,9 @@
  * Paths are relative to the project's folder on the container
  * (`<home>/.nest-deploy/<slug>/`). The empty string is the folder itself.
  *
- *   shared/**    writable, survives deploys
- *   current/**   readable; writes are allowed but last only until the next
- *                deploy, because `current` points at a release folder
+ *   shared/**    writable (when the owner has turned file changes on), survives deploys
+ *   current/**   readable, never writable: `current` points at the live release,
+ *                and a write there changes the code the app runs
  *   releases/**, incoming/**, anything else   read only
  */
 
@@ -74,8 +74,8 @@ export type Scope = {
   writable: boolean;
   /** This path itself can be written, renamed or deleted. */
   modifiable: boolean;
-  /** Changes here are lost on the next deploy. */
-  temporary: boolean;
+  /** This is the live release (`current/`): readable, and refused for every change. */
+  liveRelease: boolean;
 };
 
 export function scopeOf(input: string): Scope {
@@ -88,24 +88,30 @@ export function scopeOf(input: string): Scope {
       : first === "shared" || first === "current" || first === "releases" || first === "incoming"
         ? first
         : "other";
-  const writable = area === "shared" || area === "current";
+  const writable = area === "shared";
   return {
     path,
     area,
     depth: segments.length,
     writable,
-    // `shared` and `current` themselves are fixtures of the layout.
+    // `shared` itself is a fixture of the layout.
     modifiable: writable && segments.length >= 2,
-    temporary: area === "current",
+    liveRelease: area === "current",
   };
 }
 
-export const READ_ONLY_MESSAGE =
-  "This location is read only. Use shared/ for files that last, or current/ for changes that last until the next deploy.";
+export const READ_ONLY_MESSAGE = "This location is read only. Files in shared/ can be changed.";
 
-/** Throws unless `path` itself may be written, created, renamed or deleted. */
+export const LIVE_RELEASE_MESSAGE =
+  "current/ is the live release and is read only. Changing it would change the code your app runs. Make the change in your repository and deploy, or use shared/ for files that last.";
+
+/**
+ * Throws unless `path` itself may be written, created, renamed or deleted:
+ * only inside shared/. The live release (current/) gets its own message.
+ */
 export function assertModifiable(input: string): Scope {
   const scope = scopeOf(input);
+  if (scope.liveRelease) throw new PathError(LIVE_RELEASE_MESSAGE, "read_only", 403);
   if (!scope.modifiable) throw new PathError(READ_ONLY_MESSAGE, "read_only", 403);
   return scope;
 }
@@ -143,12 +149,12 @@ export function isInsideRoot(realRoot: string, realPath: string): boolean {
 }
 
 /**
- * Where, physically, a write may land once links are resolved: shared/, or
- * inside a release folder (which is where `current/` points). Not the project
- * folder, `releases/` itself, `incoming/` or `current` itself.
+ * Where, physically, a write may land once links are resolved: shared/ only.
+ * Not a release folder (which is where `current/` points, so a link inside
+ * shared/ cannot be used to reach the live code), the project folder,
+ * `releases/`, `incoming/` or `current` itself.
  */
 export function isWritableReal(realRoot: string, realPath: string): boolean {
   const root = realRoot.replace(/\/+$/, "");
-  if (realPath === `${root}/shared` || realPath.startsWith(`${root}/shared/`)) return true;
-  return realPath.startsWith(`${root}/releases/`) && realPath.length > `${root}/releases/`.length;
+  return realPath === `${root}/shared` || realPath.startsWith(`${root}/shared/`);
 }

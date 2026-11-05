@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { upsertUser } from "@/server/auth/session";
 import { schema } from "@/server/db";
+import { getPermissions, setPermissions } from "@/server/permissions";
 import { createProject } from "@/server/projects";
 import { SshError } from "@/server/ssh/connection";
 import { rateLimiter } from "@/server/rate-limit";
@@ -33,6 +34,10 @@ let me: { id: string; name: string };
 let other: { id: string; name: string };
 let projectId: string;
 let theirProjectId: string;
+/** A server whose switches were never touched: file changes are off by default. */
+let defaultServerId: string;
+let myServerId: string;
+let defaultProjectId: string;
 
 type Reply = { code: number; stdout?: string; stderr?: string };
 const calls: { command: string; stdin?: string | Buffer }[] = [];
@@ -76,6 +81,11 @@ beforeAll(async () => {
   const base = { repoUrl: "https://github.com/sam/app.git", runtime: "node" as const };
   const myServer = (await createServer(me.id, "sam-r")).id;
   const theirServer = (await createServer(other.id, "kim-r")).id;
+  defaultServerId = (await createServer(me.id, "sam-d")).id;
+  // File changes are off by default. The server behind `projectId` has them turned on, as the owner would.
+  myServerId = myServer;
+  await setPermissions(me.id, myServer, { fileWrites: true });
+  defaultProjectId = (await createProject(me.id, { ...base, serverId: defaultServerId, name: "Fresh", slug: "fresh", port: 3003 })).id;
   projectId = (await createProject(me.id, { ...base, serverId: myServer, name: "App", slug: "app", port: 3000 })).id;
   theirProjectId = (await createProject(other.id, { ...base, serverId: theirServer, name: "Theirs", slug: "theirs", port: 3001 })).id;
 });
@@ -166,7 +176,7 @@ describe("path rules at the route", () => {
   });
 
   it("returns 403 for writes to read-only locations and never touches SSH", async () => {
-    for (const path of ["", "shared", "current", "releases/abc/x", "incoming/a.tar.gz", "package.json"]) {
+    for (const path of ["", "shared", "current", "current/a.js", "releases/abc/x", "incoming/a.tar.gz", "package.json"]) {
       expect(await errorOf(await write(upload({ path }, "x"), ctxFor(projectId)))).toMatchObject({ status: 403, code: "read_only" });
       expect((await mkdir(post("mkdir", { path }), ctxFor(projectId))).status).toBe(403);
       expect((await remove(post("delete", { path }), ctxFor(projectId))).status).toBe(403);
@@ -198,7 +208,7 @@ describe("operations", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.entries[0]).toMatchObject({ name: "a.txt", type: "file", size: 6 });
-    expect(body.scope).toMatchObject({ area: "shared", writable: true, temporary: false });
+    expect(body.scope).toMatchObject({ area: "shared", writable: true, liveRelease: false });
     const [, run] = calls;
     expect(run.command).toContain("'/home/sam/.nest-deploy/app' 'shared'");
   });
@@ -230,7 +240,7 @@ describe("operations", () => {
     const secret = "SUPER-SECRET-FILE-CONTENTS";
     const res = await write(upload({ path: "shared/data/notes.txt", overwrite: "1" }, secret), ctxFor(projectId));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ path: "shared/data/notes.txt", temporary: false });
+    expect(await res.json()).toEqual({ path: "shared/data/notes.txt" });
 
     const run = calls.find((c) => c.stdin !== undefined)!;
     expect(run.stdin!.toString()).toBe(secret);
@@ -243,9 +253,25 @@ describe("operations", () => {
     expect(JSON.stringify(rows[0])).not.toContain(secret);
   });
 
-  it("flags writes under current/ as temporary", async () => {
-    const res = await write(upload({ path: "current/.env" }, "A=1"), ctxFor(projectId));
-    expect(await res.json()).toEqual({ path: "current/.env", temporary: true });
+  it("lists current/ as the read-only live release", async () => {
+    reply = () => ({ code: 0, stdout: ["f", "f", "6", "1730000000.0", "server.js", ""].join("\0") + "\0" });
+    const body = await (await list(get("list", { path: "current" }), ctxFor(projectId))).json();
+    expect(body.scope).toMatchObject({ area: "current", writable: false, liveRelease: true });
+    expect(body.entries[0]).toMatchObject({ name: "server.js" });
+  });
+
+  it("reads a file in current/", async () => {
+    reply = () => ({ code: 0, stdout: `5
+${Buffer.from("hello").toString("base64")}` });
+    const res = await read(get("read", { path: "current/server.js" }), ctxFor(projectId));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ content: "hello", liveRelease: true, writable: false });
+  });
+
+  it("downloads a file from current/", async () => {
+    reply = () => ({ code: 0, stdout: `3
+${Buffer.from("abc").toString("base64")}` });
+    expect((await download(get("download", { path: "current/server.js" }), ctxFor(projectId))).status).toBe(200);
   });
 
   it("passes overwrite=0 by default so existing files are not replaced silently", async () => {
@@ -291,6 +317,87 @@ describe("operations", () => {
     expect((await remove(post("delete", { path: "shared/ghost" }), ctxFor(projectId))).status).toBe(404);
     expect((await rename(post("rename", { from: "shared/ghost", to: "shared/b" }), ctxFor(projectId))).status).toBe(404);
     expect((await auditRows()).length).toBe(before);
+  });
+});
+
+describe("file changes are off by default", () => {
+  const changes = (id: string) => [
+    () => write(upload({ path: "shared/a.txt" }, "x"), ctxFor(id)),
+    () => mkdir(post("mkdir", { path: "shared/d" }), ctxFor(id)),
+    () => rename(post("rename", { from: "shared/a", to: "shared/b" }), ctxFor(id)),
+    () => remove(post("delete", { path: "shared/a" }), ctxFor(id)),
+  ];
+
+  it("starts a new server with file changes off", async () => {
+    expect((await getPermissions(me.id, defaultServerId)).fileWrites).toBe(false);
+  });
+
+  it("refuses every change with 403 disabled, before SSH and without an audit entry", async () => {
+    const before = (await auditRows()).length;
+    for (const call of changes(defaultProjectId)) {
+      expect(await errorOf(await call())).toMatchObject({ status: 403, code: "disabled" });
+    }
+    expect(sshWasUsed()).toBe(false);
+    expect((await auditRows()).length).toBe(before);
+  });
+
+  it("still lets the owner read and list while changes are off", async () => {
+    reply = () => ({ code: 0, stdout: "" });
+    expect((await list(get("list", { path: "shared" }), ctxFor(defaultProjectId))).status).toBe(200);
+    expect((await list(get("list", { path: "current" }), ctxFor(defaultProjectId))).status).toBe(200);
+  });
+
+  it("allows writes in shared/ once the owner turns them on, and refuses again when turned off", async () => {
+    await setPermissions(me.id, defaultServerId, { fileWrites: true });
+    try {
+      const res = await write(upload({ path: "shared/ok.txt", overwrite: "1" }, "x"), ctxFor(defaultProjectId));
+      expect(res.status).toBe(200);
+    } finally {
+      await setPermissions(me.id, defaultServerId, { fileWrites: false });
+    }
+    expect(await errorOf(await write(upload({ path: "shared/ok.txt" }, "x"), ctxFor(defaultProjectId)))).toMatchObject({
+      status: 403,
+      code: "disabled",
+    });
+  });
+});
+
+describe("current/ is the read-only live release", () => {
+  it("has file changes turned on for this server, so the refusals below come from current/ itself", async () => {
+    expect((await getPermissions(me.id, myServerId)).fileWrites).toBe(true);
+  });
+
+  it("refuses write, mkdir, rename and delete with 403 read_only, before SSH, with no audit entry", async () => {
+    const before = (await auditRows()).length;
+    const refusals = [
+      await write(upload({ path: "current/server.js", overwrite: "1" }, "x"), ctxFor(projectId)),
+      await write(upload({ path: "current/deep/new.js" }, "x"), ctxFor(projectId)),
+      await mkdir(post("mkdir", { path: "current/new" }), ctxFor(projectId)),
+      await rename(post("rename", { from: "current/a.js", to: "current/b.js" }), ctxFor(projectId)),
+      await rename(post("rename", { from: "current/a.js", to: "shared/a.js" }), ctxFor(projectId)),
+      await rename(post("rename", { from: "shared/a.js", to: "current/a.js" }), ctxFor(projectId)),
+      await remove(post("delete", { path: "current/server.js" }), ctxFor(projectId)),
+      await remove(post("delete", { path: "current/node_modules", recursive: true }), ctxFor(projectId)),
+    ];
+    for (const res of refusals) {
+      const e = await errorOf(res);
+      expect(e).toMatchObject({ status: 403, code: "read_only" });
+      expect(e.message).toMatch(/live release/);
+      expect(e.message).toMatch(/read only/);
+    }
+    expect(sshWasUsed()).toBe(false);
+    expect((await auditRows()).length).toBe(before);
+  });
+
+  it("cannot be reached by going up out of shared/", async () => {
+    const res = await write(upload({ path: "shared/../current/server.js" }, "x"), ctxFor(projectId));
+    expect(await errorOf(res)).toMatchObject({ status: 400, code: "bad_path" });
+    expect(sshWasUsed()).toBe(false);
+  });
+
+  it("still allows writes in shared/ on the same server", async () => {
+    const res = await write(upload({ path: "shared/ok.txt", overwrite: "1" }, "x"), ctxFor(projectId));
+    expect(res.status).toBe(200);
   });
 });
 

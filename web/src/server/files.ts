@@ -45,6 +45,11 @@ export type FileSession = {
  * `drain` is for scripts that read stdin: on failure they swallow it first so
  * the client is never left writing into a closed channel.
  * Exit codes are mapped in EXIT_ERRORS below.
+ *
+ * `wr_ok` is the one place that decides where a change may land, after every
+ * link is resolved: inside shared/ only. A release folder (where `current`
+ * points) is deliberately not allowed, so neither current/ nor a link planted
+ * in shared/ can be used to rewrite the code the app runs.
  */
 function prelude(drain = false): string {
   return `
@@ -56,7 +61,7 @@ rl() { RL=$(readlink -f -- "$1" 2>/dev/null; printf x); RL=\${RL%x}; RL=\${RL%$'
 rl "$root" || die 10
 rr=$RL
 inside() { case "$1" in "$rr"|"$rr"/*) return 0;; esac; return 1; }
-wr_ok() { case "$1" in "$rr/shared"|"$rr/shared/"*|"$rr/releases/"?*) return 0;; esac; return 1; }
+wr_ok() { case "$1" in "$rr/shared"|"$rr/shared/"*) return 0;; esac; return 1; }
 resolve_existing() {
   if [ -n "$1" ]; then rl "$root/$1" || die 30; else RL=$rr; fi
   inside "$RL" || die 20
@@ -184,7 +189,7 @@ export function buildCommand(script: string, args: readonly string[]): string {
 const EXIT_ERRORS: Record<number, [status: number, code: string, message: string]> = {
   10: [404, "no_folder", "This project has no folder on your container yet. Deploy it first."],
   20: [403, "outside_scope", "That path leaves the project folder."],
-  21: [403, "read_only", "This location is read only. Use shared/ for files that last."],
+  21: [403, "read_only", "This location is read only. Files in shared/ can be changed. The live release (current/) cannot."],
   30: [404, "not_found", "Nothing exists at that path."],
   33: [409, "not_a_folder", "That path is not a folder."],
   34: [409, "not_a_file", "That path is not a file."],
@@ -242,7 +247,7 @@ export type FileEntry = {
 
 export type DirListing = {
   path: string;
-  scope: Pick<Scope, "area" | "writable" | "temporary">;
+  scope: Pick<Scope, "area" | "writable" | "liveRelease">;
   entries: FileEntry[];
   /** More than LIST_LIMIT entries exist; the rest are not shown. */
   truncated: boolean;
@@ -282,7 +287,7 @@ export async function listDir(session: FileSession, root: string, rawPath: strin
   const out = await run(session, SCRIPTS.list, [root, scope.path]);
   return {
     path: scope.path,
-    scope: { area: scope.area, writable: scope.writable, temporary: scope.temporary },
+    scope: { area: scope.area, writable: scope.writable, liveRelease: scope.liveRelease },
     ...parseListing(out),
   };
 }
@@ -295,8 +300,8 @@ export type FileContent = {
   /** Only the first READ_LIMIT bytes are returned. */
   truncated: boolean;
   content: string | null;
-  /** True under current/, where edits do not survive a deploy. */
-  temporary: boolean;
+  /** True under current/, the live release, which is read only. */
+  liveRelease: boolean;
   writable: boolean;
 };
 
@@ -335,7 +340,7 @@ export async function readFile(session: FileSession, root: string, rawPath: stri
     binary: content === null,
     truncated,
     content,
-    temporary: scope.temporary,
+    liveRelease: scope.liveRelease,
     writable: scope.modifiable,
   };
 }
@@ -353,7 +358,7 @@ export async function downloadFile(
   return { name: baseName(scope.path), bytes: splitSized(out).data };
 }
 
-export type WriteResult = { path: string; temporary: boolean };
+export type WriteResult = { path: string };
 
 export async function writeFile(
   session: FileSession,
@@ -370,13 +375,13 @@ export async function writeFile(
     stdin: content,
     timeoutMs: 120_000,
   });
-  return { path: scope.path, temporary: scope.temporary };
+  return { path: scope.path };
 }
 
 export async function makeDir(session: FileSession, root: string, rawPath: string): Promise<WriteResult> {
   const scope = rules(() => assertModifiable(rawPath));
   await run(session, SCRIPTS.mkdir, [root, scope.path]);
-  return { path: scope.path, temporary: scope.temporary };
+  return { path: scope.path };
 }
 
 export async function renamePath(
@@ -384,7 +389,7 @@ export async function renamePath(
   root: string,
   rawFrom: string,
   rawTo: string
-): Promise<{ from: string; to: string; temporary: boolean }> {
+): Promise<{ from: string; to: string }> {
   const from = rules(() => assertModifiable(rawFrom));
   const to = rules(() => assertModifiable(rawTo));
   if (from.path === to.path) throw new HttpError(400, "That is the same path.", "bad_path");
@@ -392,7 +397,7 @@ export async function renamePath(
     throw new HttpError(400, "A folder cannot move into itself.", "bad_path");
   }
   await run(session, SCRIPTS.rename, [root, from.path, to.path]);
-  return { from: from.path, to: to.path, temporary: from.temporary || to.temporary };
+  return { from: from.path, to: to.path };
 }
 
 export async function deletePath(
@@ -403,7 +408,7 @@ export async function deletePath(
 ): Promise<WriteResult> {
   const scope = rules(() => assertModifiable(rawPath));
   await run(session, SCRIPTS.delete, [root, scope.path, recursive ? "1" : "0"], { timeoutMs: 120_000 });
-  return { path: scope.path, temporary: scope.temporary };
+  return { path: scope.path };
 }
 
 // ---------------------------------------------------------------------------
