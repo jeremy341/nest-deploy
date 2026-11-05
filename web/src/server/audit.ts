@@ -26,7 +26,7 @@ export async function audit(
 }
 
 /** Plain-language text for each action. Unknown actions fall back to the raw name. */
-const LABELS: Record<string, string> = {
+export const LABELS: Record<string, string> = {
   "project.create": "Created project",
   "project.update": "Changed settings for",
   "project.delete": "Deleted project",
@@ -36,6 +36,8 @@ const LABELS: Record<string, string> = {
   "deploy.redeploy": "Redeployed",
   "deploy.rollback": "Rolled back",
   "deploy.cancel": "Canceled a deployment of",
+  "deploy.preview_delete": "Deleted a preview deployment of",
+  "hook.trigger": "Deployed through the deploy hook for",
   "hook.create": "Created a deploy hook for",
   "hook.revoke": "Revoked the deploy hook for",
   "domain.add": "Added domain",

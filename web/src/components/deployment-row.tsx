@@ -5,6 +5,7 @@ import {
   GitBranchIcon,
   GitCommitIcon,
 } from "@phosphor-icons/react/dist/ssr";
+import { CommitLink } from "@/components/commit-link";
 import { DeploymentActions } from "@/components/deployment-actions";
 import { StatusDot } from "@/components/status-dot";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -117,7 +118,11 @@ export function DeploymentRow({
           <p className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden font-mono md:gap-3 text-[13px] text-muted-foreground">
             <span className="flex shrink-0 items-center gap-1 max-md:hidden">
               <GitCommitIcon aria-hidden="true" className="size-4 shrink-0" />
-              {(deployment.sha ?? deployment.id).slice(0, 7)}
+              {deployment.sha ? (
+                <CommitLink repo={deployment.repo} sha={deployment.sha} link={!demo} />
+              ) : (
+                deployment.id.slice(0, 7)
+              )}
             </span>
             <span className="flex min-w-0 flex-1 items-center gap-1 md:flex-none">
               <GitBranchIcon aria-hidden="true" className="size-4 shrink-0" />

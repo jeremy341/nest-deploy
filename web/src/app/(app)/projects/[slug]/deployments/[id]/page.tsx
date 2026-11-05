@@ -6,6 +6,7 @@ import {
   GitCommitIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { BuildLogs } from "@/components/build-logs";
+import { CommitLink } from "@/components/commit-link";
 import { DeploymentActions } from "@/components/deployment-actions";
 import { PageHeader } from "@/components/page-header";
 import { DeploymentSkeleton } from "@/components/skeletons/deployment";
@@ -134,7 +135,12 @@ async function Content({ params }: Props) {
               </p>
               <p className="flex min-w-0 items-center gap-1.5">
                 <GitCommitIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-                <span className="shrink-0 font-mono text-[13px]">{(d.sha ?? "").slice(0, 7) || "pending"}</span>
+                <CommitLink
+                  repo={d.repo}
+                  sha={d.sha}
+                  fallback="pending"
+                  className="shrink-0 font-mono text-[13px]"
+                />
                 <span className="truncate">{d.commit}</span>
               </p>
             </dd>

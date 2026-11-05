@@ -23,6 +23,7 @@ function dep(over: Partial<DeploymentView>): DeploymentView {
     projectId: "p1",
     projectSlug: "recipe-api",
     projectName: "recipe-api",
+    repo: "sam-r/recipe-api",
     env: "production",
     state: "ready",
     rawState: "ready",

@@ -8,6 +8,7 @@ import {
   GitCommitIcon,
   GithubLogoIcon,
 } from "@phosphor-icons/react/dist/ssr";
+import { CommitLink } from "@/components/commit-link";
 import { DeployButton } from "@/components/deploy-button";
 import { RollbackButton } from "@/components/rollback-button";
 import { ProjectResources } from "@/components/project-resources";
@@ -212,9 +213,7 @@ async function ProjectContent({ params }: Props) {
                 </p>
                 <p className="flex min-w-0 items-center gap-1.5">
                   <GitCommitIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="shrink-0 font-mono text-[13px]">
-                    {(live.sha ?? "").slice(0, 7)}
-                  </span>
+                  <CommitLink repo={live.repo} sha={live.sha} className="shrink-0 font-mono text-[13px]" />
                   <span className="truncate">{live.commit}</span>
                 </p>
               </dd>
@@ -368,8 +367,8 @@ async function ProjectContent({ params }: Props) {
                   {d.branch}
                 </Link>
                 <StatusDot state={d.state} showLabel={false} />
-                <span className="hidden font-mono text-[13px] text-muted-foreground sm:inline">
-                  {(d.sha ?? d.id).slice(0, 7)}
+                <span className="hidden font-mono text-[13px] text-muted-foreground sm:inline-flex">
+                  {d.sha ? <CommitLink repo={d.repo} sha={d.sha} /> : d.id.slice(0, 7)}
                 </span>
                 <span className="shrink-0 text-muted-foreground">{d.age}</span>
               </li>

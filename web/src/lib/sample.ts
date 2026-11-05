@@ -3,6 +3,8 @@ import type { DeploymentView } from "@/server/queries";
 /** Made-up deployments for the homepage demos. Not real data. */
 const base = {
   projectId: "demo",
+  // The homepage demo must not link out.
+  repo: null,
   source: "webhook",
   author: "sam-r",
   cleanedUp: false,

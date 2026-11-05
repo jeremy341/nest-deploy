@@ -36,6 +36,8 @@ export type ProjectView = {
   state: UiState | null;
   lastCommit: string | null;
   lastSha: string | null;
+  /** Full SHA of the most recent deployment, for linking to the commit. */
+  lastShaFull: string | null;
   lastAge: string | null;
   latestDeploymentId: string | null;
   /** Result of the worker's last uptime check. */
@@ -50,6 +52,8 @@ export type DeploymentView = {
   projectId: string;
   projectSlug: string;
   projectName: string;
+  /** `owner/name` of the GitHub repository, or null when the project has none. */
+  repo: string | null;
   env: "production" | "preview";
   state: UiState;
   rawState: string;
@@ -75,13 +79,14 @@ type DeploymentRow = typeof schema.deployments.$inferSelect;
 
 function toDeploymentView(
   d: DeploymentRow,
-  project: { id: string; slug: string; name: string }
+  project: { id: string; slug: string; name: string; repoFullName: string | null }
 ): DeploymentView {
   return {
     id: d.id,
     projectId: project.id,
     projectSlug: project.slug,
     projectName: project.name,
+    repo: project.repoFullName,
     env: d.env,
     state: uiState(d.state),
     rawState: d.state,
@@ -151,6 +156,7 @@ export async function projectViews(userId: string): Promise<ProjectView[]> {
       state: d ? uiState(d.state) : null,
       lastCommit: d?.commitMessage ?? null,
       lastSha: d?.commitSha?.slice(0, 7) ?? null,
+      lastShaFull: d?.commitSha ?? null,
       lastAge: d ? timeAgo(d.createdAt) : null,
       latestDeploymentId: d?.id ?? null,
       monitor: p.monitorState,

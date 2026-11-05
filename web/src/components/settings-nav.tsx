@@ -8,6 +8,7 @@ const SECTIONS = [
   { id: "env-heading", label: "Environment Variables" },
   { id: "hook-heading", label: "Deploy Hook" },
   { id: "notify-heading", label: "Notifications" },
+  { id: "alerts-heading", label: "Alerts" },
   { id: "status-page-heading", label: "Status Page" },
   { id: "danger-heading", label: "Delete Project" },
 ] as const;

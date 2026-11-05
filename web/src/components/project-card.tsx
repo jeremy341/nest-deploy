@@ -3,6 +3,7 @@ import {
   GitCommitIcon,
   GithubLogoIcon,
 } from "@phosphor-icons/react/dist/ssr";
+import { CommitLink } from "@/components/commit-link";
 import { StatusDot } from "@/components/status-dot";
 import { PixelAvatar } from "@/components/ui/pixel-avatar";
 import type { ProjectView } from "@/server/queries";
@@ -54,15 +55,18 @@ export function ProjectCard({
     );
   }
 
+  // The card link is stretched over the whole card (the name's `after`), so the
+  // commit link can sit above it without being nested inside another anchor.
   return (
-    <Link
-      href={href}
-      className="card-interactive flex h-full flex-col gap-4 rounded-lg bg-card p-4 shadow-border-small"
-    >
+    <div className="card-interactive row-focus relative flex h-full flex-col gap-4 rounded-lg bg-card p-4 shadow-border-small">
       <div className="flex items-center gap-3">
         <PixelAvatar seed={project.slug} size={32} />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium tracking-[-0.02em]">{project.name}</p>
+          <p className="truncate font-medium tracking-[-0.02em]">
+            <Link href={href} className="after:absolute after:inset-0 after:content-['']">
+              {project.name}
+            </Link>
+          </p>
           <p className="truncate text-label text-muted-foreground">{address}</p>
         </div>
         <StatusDot state={project.state} showLabel={false} />
@@ -71,9 +75,11 @@ export function ProjectCard({
       <p className="flex min-w-0 items-center gap-2">
         <GitCommitIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
         {project.lastSha ? (
-          <span className="shrink-0 font-mono text-[12px] text-muted-foreground">
-            {project.lastSha}
-          </span>
+          <CommitLink
+            repo={project.repo}
+            sha={project.lastShaFull ?? project.lastSha}
+            className="font-mono text-[12px] text-muted-foreground"
+          />
         ) : null}
         <span className="truncate">{commitText(project)}</span>
       </p>
@@ -90,6 +96,6 @@ export function ProjectCard({
           </>
         ) : null}
       </p>
-    </Link>
+    </div>
   );
 }
