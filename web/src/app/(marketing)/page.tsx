@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BuildLogs } from "@/components/build-logs";
 import { DeploymentsView } from "@/components/deployments-view";
+import { HeroLetters } from "@/components/marketing/hero-letters";
 import { StepMarker, StepTrackLine } from "@/components/marketing/step-track";
 import { TerminalCta } from "@/components/marketing/terminal-cta";
 import { Reveal } from "@/components/motion/reveal";
@@ -36,8 +37,8 @@ function Hero() {
   return (
     <section className="flex min-h-[calc(100dvh-3.5rem)] flex-col">
       <div className={cn(wrap, "flex flex-1 flex-col items-center justify-center py-16 text-center")}>
-        <h1 className="hero-wipe font-pixel mx-auto max-w-[12ch] text-[clamp(3.5rem,10.5vw,11rem)] leading-[0.92] font-medium text-balance">
-          Deploy to your Nest.
+        <h1 className="font-pixel mx-auto max-w-[12ch] text-[clamp(3.5rem,10.5vw,11rem)] leading-[0.92] font-medium text-balance">
+          <HeroLetters text="Deploy to your Nest." />
         </h1>
         <p style={{ "--rise-delay": "0.95s" } as React.CSSProperties} className="hero-rise mx-auto mt-9 max-w-[46ch] text-[clamp(1.125rem,1.7vw,1.5rem)] leading-[1.5] text-muted-foreground text-balance">
           Push to GitHub and your app builds and goes live on your free Hack Club Nest container,
@@ -152,9 +153,14 @@ const STEPS = [
   ["Import the repo", "Install the GitHub app on a repository and pick it. Check the runtime, port and commands it detected, then press Deploy."],
 ];
 
+/** Each step starts one stair lower than the last (wide screens only). */
+const STAIR = ["", "md:mt-14", "md:mt-28"];
+
 /**
- * A hairline runs across the top of each step with one lit square at its start.
- * The squares switch on one after another as the section arrives.
+ * Three steps drawn as a pixel staircase: a hairline over each step, a riser
+ * down from the end of the last one, and a lit square where each begins. The
+ * squares switch on one after another as the section arrives. On a phone the
+ * steps simply stack.
  */
 function Start() {
   return (
@@ -164,10 +170,16 @@ function Start() {
         <p className="text-docs-lead text-reading mt-6 max-w-[48ch]">
           Do it once. After that, every push to your production branch deploys on its own.
         </p>
-        <ol className="mt-16 grid md:grid-cols-3">
+        <ol className="mt-16 grid md:mt-20 md:grid-cols-3">
           {STEPS.map(([title, text], i) => (
-            <li key={title} className="relative pt-8 pr-8 pb-2 max-md:pb-8">
+            <li key={title} className={cn("relative pt-8 pr-8 pb-2 max-md:pb-8", STAIR[i])}>
               <StepTrackLine />
+              {i > 0 && (
+                <span
+                  aria-hidden="true"
+                  className="absolute -top-14 left-0 hidden h-14 w-px bg-[var(--ds-gray-alpha-500)] md:block"
+                />
+              )}
               <StepMarker index={i} />
               <h3 className="font-pixel text-[24px] leading-none font-medium">{title}</h3>
               <p className="text-prose mt-4 max-w-[36ch] text-muted-foreground">{text}</p>
@@ -188,13 +200,12 @@ const RUNTIMES = [
 
 function Runtimes() {
   return (
-    <section id="runtimes" className={section}>
+    <section id="runtimes" className="scroll-mt-14 py-10 lg:py-16">
       <Reveal className={wrap}>
-        <h2 className={cn(h2, "max-w-[20ch]")}>It reads your repo and picks the commands.</h2>
-        <p className="text-docs-lead text-reading mt-6 max-w-[52ch]">
-          No config file to write. Override any step in the project settings.
-        </p>
-        <div className="mt-14 border bg-background">
+        <h2 className="font-pixel max-w-[30ch] text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.05] font-medium text-balance">
+          It reads your repo and picks the commands.
+        </h2>
+        <div className="mt-10 border-y bg-background">
           <table className="w-full text-left max-md:block">
             <caption className="sr-only">What Nest Deploy runs for each kind of project</caption>
             <thead className="max-md:sr-only">
@@ -209,16 +220,18 @@ function Runtimes() {
                 <tr key={name} className="border-b last:border-b-0 max-md:block max-md:px-4 max-md:py-5">
                   <th
                     scope="row"
-                    className="font-pixel px-6 py-6 align-top text-[21px] leading-6 font-medium max-md:block max-md:p-0"
+                    className="font-pixel px-6 py-6 align-top text-[24px] leading-7 font-medium max-md:block max-md:p-0"
                   >
                     {name}
                   </th>
                   <td className="text-prose max-w-[52ch] px-6 py-6 align-top text-muted-foreground max-md:mt-2 max-md:block max-md:p-0">
                     {text}
                   </td>
-                  <td className="px-6 py-6 align-top font-mono text-[14px] leading-7 max-md:mt-2 max-md:block max-md:p-0">
-                    <span className="text-subtle-foreground md:sr-only">Starts with </span>
-                    {start}
+                  <td className="px-6 py-6 align-top max-md:mt-3 max-md:block max-md:p-0">
+                    <span className="text-label mr-2 text-subtle-foreground md:sr-only">Starts with</span>
+                    <span className="inline-block bg-foreground px-2.5 py-1 font-mono text-[13px] leading-5 text-background">
+                      {start}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -226,7 +239,7 @@ function Runtimes() {
           </table>
         </div>
         <p className="text-prose mt-6 max-w-[60ch] text-muted-foreground">
-          Whichever it is, your app listens on the{" "}
+          No config file to write, and any step can be overridden in the project settings. Whichever it is, your app listens on the{" "}
           <code className="font-mono text-[0.9em] text-foreground">PORT</code> it is given, on{" "}
           <code className="font-mono text-[0.9em] text-foreground">0.0.0.0</code>.
         </p>
@@ -259,13 +272,16 @@ function Agents() {
   return (
     <section id="agents" className={section}>
       <Reveal className={wrap}>
-        <h2 className={cn(h2, "max-w-[20ch]")}>Built for scripts and AI agents.</h2>
-        <p className="text-docs-lead text-reading mt-6 max-w-[52ch]">
-          Make an access token on the Developer page and tick only what the job needs. A script or an AI
-          agent can then work with your projects without your password.
-        </p>
-        <div className="mt-14 grid gap-12 lg:grid-cols-2 lg:gap-20">
-          <div className="min-w-0">
+        {/* Heading and notes in the left column, the snippets down the right. */}
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-x-20 lg:gap-y-14">
+          <div className="lg:col-start-1 lg:row-start-1">
+            <h2 className={cn(h2, "max-w-[16ch]")}>Give a script a token, not your password.</h2>
+            <p className="text-docs-lead text-reading mt-6 max-w-[44ch]">
+              Make an access token on the Developer page and tick only what the job needs. A script or an AI
+              agent then works with your projects as that token, and nothing more.
+            </p>
+          </div>
+          <div className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:pt-3">
             <Frame label="API and MCP" tag="Example">
               <div className="space-y-6 p-4 sm:p-6">
                 <div>
@@ -293,12 +309,12 @@ function Agents() {
               </div>
             </Frame>
           </div>
-          <div className="space-y-8 lg:pt-2">
+          <div className="space-y-8 lg:col-start-1 lg:row-start-2">
             <div className={note}>
               <h3 className={term}>Scopes and expiry</h3>
               <p className="text-prose mt-3 max-w-[48ch] text-muted-foreground">
-                A token holds one or more of six permissions and lasts 7, 30, 90 or 365 days. You can
-                rename it, change its permissions or revoke it at any time.
+                A token holds only the scopes you tick, from read-only access to deploys, and lasts 7, 30, 90 or 365
+                days. You can rename it, change its scopes or revoke it at any time.
               </p>
               <ul className="text-caption mt-4 grid max-w-[30rem] grid-cols-2 gap-x-5 gap-y-1 font-mono text-foreground">
                 {TOKEN_SCOPES.map((scope) => (
@@ -322,8 +338,9 @@ function Agents() {
             <div className={note}>
               <h3 className={term}>What a token cannot do</h3>
               <p className="text-prose mt-3 max-w-[48ch] text-muted-foreground">
-                It cannot open the terminal, change files, remove leftovers, change permissions, or manage your
-                account, sessions or tokens. Those need you, signed in to the browser.
+                It cannot remove leftovers, change container permissions, or manage your account, sessions or tokens.
+                Those need you, signed in to the browser. Terminal and file access is only possible with those
+                scopes, and such a token expires within 7 days.
               </p>
             </div>
           </div>
@@ -366,53 +383,82 @@ function ProductNotes() {
   );
 }
 
-const em = "font-medium text-foreground";
+const strong = "font-medium text-background";
 
+/** The time limits on the terminal and file changes, as figures. */
+const LIMITS = [
+  ["5 min", "Turning the terminal or file changes on needs a Hack Club sign-in made this recently."],
+  ["10 min", "An open terminal ends after this long without input."],
+  ["60 min", "Or after this long in total, whichever comes first."],
+];
+
+/**
+ * The one dark block on the page, because it is the one place we ask you to
+ * trust us with something. The time limits are the real numbers from the code,
+ * set large.
+ */
 function Security() {
   return (
-    <section id="security" className={section}>
-      <Reveal className={cn(wrap, "grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,600px)] lg:gap-20")}>
-        <div>
-          <h2 className={cn(h2, "max-w-[14ch]")}>The key can do what you can do.</h2>
-          <p className="text-docs-lead text-reading mt-8 max-w-[40ch]">
-            SSH into Nest puts you in a root shell inside your own container, so the key we hold has the
-            same reach. We say so before you add it.
-          </p>
+    <section id="security" className="scroll-mt-14 bg-foreground py-20 text-background lg:py-32">
+      <Reveal className={wrap}>
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,600px)] lg:gap-20">
+          <div>
+            <h2 className={cn(h2, "max-w-[14ch]")}>The key can do what you can do.</h2>
+            <p className="text-docs-lead mt-8 max-w-[40ch] text-background/85">
+              SSH into Nest puts you in a root shell inside your own container, so the key we hold has the
+              same reach. We say so before you add it.
+            </p>
+          </div>
+          <div className="text-prose space-y-6 text-background/85 lg:pt-3">
+            <p>
+              Each server gets its own <span className={strong}>ed25519 key</span>, made for Nest Deploy and used
+              for nothing else. It is encrypted with <span className={strong}>AES-256-GCM</span> before it reaches
+              the database, and tied to your server so it cannot be moved. The first connection records
+              Nest&apos;s host key, and if it ever changes we stop before sending anything.
+            </p>
+            <p>
+              Your repo is built in a sandbox on our side, so your container&apos;s memory is for your app,
+              and the source is deleted when the build ends. Environment variables are encrypted, masked in
+              logs and never sent back to your browser. Sign-in is Hack Club Auth, which has no route to your
+              container.
+            </p>
+            <p>
+              The <span className={strong}>terminal</span> and <span className={strong}>file changes</span> are off for
+              every server until you turn them on.
+            </p>
+            <ul className="space-y-3">
+              {[
+                "File changes can only touch the shared folder. The live release is read-only.",
+                "An open terminal closes when you sign out or when its switch is turned off.",
+              ].map((line) => (
+                <li key={line} className="flex gap-3">
+                  <span aria-hidden="true" className="mt-[11px] size-1.5 shrink-0 bg-background" />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-        <div className="text-prose space-y-6 text-muted-foreground lg:pt-3">
-          <p>
-            Each server gets its own <span className={em}>ed25519 key</span>, made for Nest Deploy and used
-            for nothing else. It is encrypted with <span className={em}>AES-256-GCM</span> before it reaches
-            the database, and tied to your server so it cannot be moved. The first connection records
-            Nest&apos;s host key, and if it ever changes we stop before sending anything.
-          </p>
-          <p>
-            Your repo is built in a sandbox on our side, so your container&apos;s memory is for your app,
-            and the source is deleted when the build ends. Environment variables are encrypted, masked in
-            logs and never sent back to your browser. Sign-in is Hack Club Auth, which has no route to your
-            container.
-          </p>
-          <p>
-            The <span className={em}>terminal</span> and <span className={em}>file changes</span> are off for
-            every server until you turn them on.
-          </p>
-          <ul className="space-y-3">
-            {[
-              "Turning either on needs a fresh Hack Club sign-in, made in the last 5 minutes.",
-              "File changes can only touch the shared folder. The live release is read-only.",
-              "An open terminal closes when you sign out or when its switch is turned off. It also ends after 10 minutes without input, or 60 minutes in total.",
-            ].map((line) => (
-              <li key={line} className="flex gap-3">
-                <span aria-hidden="true" className="mt-[11px] size-1.5 shrink-0 bg-foreground" />
-                <span>{line}</span>
-              </li>
-            ))}
-          </ul>
-          <p className={cn(em, "border-t pt-6")}>
+
+        <ul className="mt-16 grid md:grid-cols-3 lg:mt-24">
+          {LIMITS.map(([figure, text]) => (
+            <li key={figure} className="relative border-t border-background/30 pt-8 pr-8 pb-2 max-md:pb-8">
+              <span aria-hidden="true" className="absolute -top-[3.5px] left-0 block size-2 bg-background" />
+              <p className="tabular font-mono text-[clamp(2.5rem,5vw,4rem)] leading-none font-medium tracking-[-0.05em]">{figure}</p>
+              <p className="text-prose mt-4 max-w-[30ch] text-background/85">{text}</p>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-12 flex flex-col gap-4 border-t border-background/30 pt-8 sm:flex-row sm:items-baseline sm:justify-between sm:gap-12">
+          <p className={cn(strong, "text-prose max-w-[52ch]")}>
             To take access back, delete the key in your Nest dashboard. It ends at once, and your apps keep
             running.
           </p>
-          <Link href="/docs#security" className="link inline-flex items-center py-2 text-[14px] font-medium text-foreground max-sm:py-2.5">
+          <Link
+            href="/docs#security"
+            className="link inline-flex shrink-0 items-center py-2 text-[14px] font-medium text-background decoration-background/60! hover:decoration-background! max-sm:py-2.5"
+          >
             Security notes in the docs
           </Link>
         </div>
@@ -427,8 +473,8 @@ const FAQ: [string, React.ReactNode][] = [
   ["Does it work with private repositories?", "Yes. Nest Deploy reads whatever repositories you give the GitHub app access to, and only those."],
   ["Can I use my own domain?", "Yes, with one manual step. Nest maps domains to ports on its own dashboard and has no API for it, so we show you what to enter and check your DNS."],
   ["Does it run databases?", "No. It deploys your app. If you need a database, run one in your Nest container yourself and point the app at it with an environment variable."],
-  ["Can an AI agent use it?", "Yes. Make an access token with only the permissions the job needs and point the agent at the MCP endpoint, so it can list projects, deploy, read logs and check usage. A token cannot open the terminal, change files, remove leftovers or change permissions."],
-  ["Can it change my files or open a terminal?", "Only after you turn that on for a server and confirm with a fresh Hack Club sign-in. Both start off, and neither is ever open to a token."],
+  ["Can an AI agent use it?", "Yes. Make an access token with only the permissions the job needs and point the agent at the MCP endpoint, so it can list projects, deploy, read logs and check usage. A token cannot remove leftovers or change permissions. With the terminal or file scopes it can open a terminal or change files, for 7 days at most."],
+  ["Can it change my files or open a terminal?", "Only after you turn that on for a server and confirm with a fresh Hack Club sign-in. Both start off. A token gets either only if you grant its scope, and such a token expires within 7 days."],
   [
     "Where are the numbers on /stats from?",
     <>

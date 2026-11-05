@@ -4,11 +4,22 @@ import { cn } from "@/lib/utils";
 import { ROW } from "./layout";
 
 /** A rounded figure. A bound reads as words, in smaller type, so it is never mistaken for a count. */
-export function Figure({ count, small }: { count: Count; small?: boolean }) {
+export function Figure({ count, small, display }: { count: Count; small?: boolean; display?: boolean }) {
   return "lessThan" in count ? (
-    <span className="text-title-2">Fewer than {formatCount({ approx: count.lessThan })}</span>
+    <span className="text-title-2 inline-flex items-center gap-2.5">
+      {/* The hollow square is the chart legend's mark for "fewer than 10". */}
+      <span aria-hidden="true" className="size-2.5 shrink-0 border border-current" />
+      Fewer than {formatCount({ approx: count.lessThan })}
+    </span>
   ) : (
-    <span className={cn("tabular", small ? "text-title-2" : "text-stat")}>{formatCount(count)}</span>
+    <span
+      className={cn(
+        "tabular",
+        display ? "font-mono text-[clamp(2.75rem,5.5vw,4rem)] leading-none font-medium tracking-[-0.05em]" : small ? "text-title-2" : "text-stat"
+      )}
+    >
+      {formatCount(count)}
+    </span>
   );
 }
 
@@ -37,7 +48,7 @@ export function Total({ label, hint, children }: { label: string; hint: string; 
 export function SectionHead({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
     <div className="max-w-[56ch]">
-      <h2 id={id} className="text-docs-h2">
+      <h2 id={id} className="font-pixel text-docs-h2">
         {title}
       </h2>
       <p className="mt-2 text-body-lg text-muted-foreground">{children}</p>

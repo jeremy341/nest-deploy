@@ -18,7 +18,7 @@ export default function NotFound() {
         404
       </p>
       <h1 className="relative text-[24px] leading-8 font-semibold tracking-[-0.025em]">
-        This page could not be found
+        Nothing is listening here
       </h1>
       <p className="relative -mt-2 max-w-[36ch] text-muted-foreground">
         The link may be old, or the page may have moved.

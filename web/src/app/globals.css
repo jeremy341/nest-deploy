@@ -971,7 +971,24 @@
     transform: translateY(14px);
   }
 }
+/*
+ * Homepage headline letters: each letter lights up like a pixel, in three
+ * stepped frames (dim, brighter, full) while it settles 0.12em onto its baseline
+ * grid. The letters start 44ms apart, left to right, so the word fills in over
+ * about 1.1s. Only transform and opacity change, and the letters are inline-blocks
+ * at their final size, so nothing reflows. Letters are visible by default; the
+ * animation only runs when motion is allowed and uses backwards fill for its delay.
+ */
+@keyframes hero-letter {
+  from {
+    opacity: 0;
+    transform: translateY(0.12em);
+  }
+}
 @media (prefers-reduced-motion: no-preference) {
+  .hero-letter {
+    animation: hero-letter 0.36s steps(3, end) calc(0.08s + var(--i, 0) * 44ms) backwards;
+  }
   .hero-wipe {
     animation: hero-wipe 0.9s steps(18, end) 0.1s backwards;
   }

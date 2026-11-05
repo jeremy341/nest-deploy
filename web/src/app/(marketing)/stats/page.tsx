@@ -55,8 +55,8 @@ async function StatsBody() {
               <h3 id="deploys" className="text-label text-muted-foreground">
                 Deployments in the last {s.windowDays} days
               </h3>
-              <p className="mt-1 flex h-10 items-center">
-                <Figure count={d.total} />
+              <p className="mt-2 flex min-h-14 items-center">
+                <Figure count={d.total} display />
               </p>
               <div className="mt-5">
                 <StatsChart daily={d.daily} />

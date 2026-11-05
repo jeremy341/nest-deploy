@@ -49,8 +49,8 @@ export function StatsSkeleton() {
         <div className={FRAME}>
           <div className="p-5">
             <SkeletonText size="label" width="w-48" />
-            <div className="mt-1 flex h-10 items-center">
-              <Skeleton className="h-8 w-24" />
+            <div className="mt-2 flex min-h-14 items-center">
+              <Skeleton className="h-10 w-28" />
             </div>
             <div className="mt-5">
               <div className="flex items-baseline justify-between gap-3">
