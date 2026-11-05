@@ -12,10 +12,9 @@ import { HttpError, notFound } from "@/server/http";
  * runs on its next restart, so file changes are close to terminal access.
  * Leftover removal is ON (each removal is confirmed in the UI).
  *
- * Turning the terminal or file changes ON is confirmed in the UI by typing the
- * server's Nest username. That confirmation is a UI guard only: this module
- * and the permissions route let the signed-in owner (and nobody else) switch
- * either on with a plain request. Turning a switch off never needs it.
+ * Turning the terminal or file changes ON needs a Hack Club sign-in from the last
+ * few minutes (see `isFreshAuth` in auth/session.ts). That check is made by the
+ * permissions route. Turning a switch off never needs it.
  */
 export type ContainerPermission = "terminal" | "fileWrites" | "orphanRemoval";
 

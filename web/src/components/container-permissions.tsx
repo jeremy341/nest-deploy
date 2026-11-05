@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Switch } from "@base-ui/react/switch";
 import { api } from "@/components/api";
 import { Alert } from "@/components/ui/alert";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { PixelLoader } from "@/components/ui/pixel-loader";
 import { toast } from "@/components/ui/toast";
 import {

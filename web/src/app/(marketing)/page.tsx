@@ -4,6 +4,7 @@ import { DeploymentsView } from "@/components/deployments-view";
 import { StepMarker, StepTrackLine } from "@/components/marketing/step-track";
 import { TerminalCta } from "@/components/marketing/terminal-cta";
 import { Reveal } from "@/components/motion/reveal";
+import { curlExample, mcpConfigSnippet } from "@/lib/developer";
 import { REPO_URL } from "@/lib/site";
 import { SAMPLE_DEPLOYMENTS, SAMPLE_LOG } from "@/lib/sample";
 import { cn } from "@/lib/utils";
@@ -59,6 +60,28 @@ function Hero() {
 }
 
 /**
+ * The hairline frame with crosshair corners and a header bar. `tag` is the
+ * small note on the right of the bar ("Sample data", "Example").
+ */
+function Frame({ label, tag, children }: { label: string; tag: string; children: React.ReactNode }) {
+  return (
+    <div className="relative">
+      <Plus className="-top-1.5 -left-1.5 z-10" />
+      <Plus className="-top-1.5 -right-1.5 z-10" />
+      <Plus className="-bottom-1.5 -left-1.5 z-10" />
+      <Plus className="-right-1.5 -bottom-1.5 z-10" />
+      <div className="overflow-hidden border bg-background">
+        <div className="text-caption flex h-10 items-center justify-between gap-4 border-b px-4 font-mono font-normal text-muted-foreground">
+          <span className="truncate">{label}</span>
+          <span className="shrink-0">{tag}</span>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/**
  * A headline and the real UI under it, with a short note beside it. `flip`
  * puts the note on the right. The frame's header bar says the data is sample
  * data, because it is.
@@ -70,6 +93,7 @@ function Showcase({
   detail,
   frameLabel,
   flip = false,
+  after,
   children,
 }: {
   id?: string;
@@ -81,6 +105,8 @@ function Showcase({
   /** The name in the frame's header bar. */
   frameLabel: string;
   flip?: boolean;
+  /** Notes that sit under the frame, in the same column. */
+  after?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -94,26 +120,27 @@ function Showcase({
       >
         {/* Pinned to the top so the demo beside it can grow and shrink (collapsing the log,
             filtering the list) without moving this text. */}
-        <div className={cn("order-2 lg:sticky lg:top-24 lg:self-start lg:pt-2", flip ? "lg:order-2" : "lg:order-1")}>
+        <div
+          className={cn(
+            "order-2 lg:row-start-1 lg:sticky lg:top-24 lg:self-start lg:pt-2",
+            after && "lg:row-span-2",
+            flip ? "lg:col-start-2" : "lg:col-start-1"
+          )}
+        >
           <p className="text-docs-lead text-reading max-w-[30ch]">{note}</p>
           <p className="text-body mt-5 max-w-[34ch] text-muted-foreground">{detail}</p>
         </div>
-        <div className={cn("order-1 min-w-0", flip ? "lg:order-1" : "lg:order-2")}>
+        <div className={cn("order-1 min-w-0 lg:row-start-1", flip ? "lg:col-start-1" : "lg:col-start-2")}>
           <h2 className={cn(h2, "max-w-[20ch]")}>{title}</h2>
-          <div className="relative mt-12">
-            <Plus className="-top-1.5 -left-1.5 z-10" />
-            <Plus className="-top-1.5 -right-1.5 z-10" />
-            <Plus className="-bottom-1.5 -left-1.5 z-10" />
-            <Plus className="-right-1.5 -bottom-1.5 z-10" />
-            <div className="overflow-hidden border bg-background">
-              <div className="text-caption flex h-10 items-center justify-between gap-4 border-b px-4 font-mono font-normal text-muted-foreground">
-                <span className="truncate">{frameLabel}</span>
-                <span className="shrink-0">Sample data</span>
-              </div>
+          <div className="mt-12">
+            <Frame label={frameLabel} tag="Sample data">
               {children}
-            </div>
+            </Frame>
           </div>
         </div>
+        {after && (
+          <div className={cn("order-3 min-w-0 lg:row-start-2", flip ? "lg:col-start-1" : "lg:col-start-2")}>{after}</div>
+        )}
       </Reveal>
     </section>
   );
@@ -203,8 +230,139 @@ function Runtimes() {
           <code className="font-mono text-[0.9em] text-foreground">PORT</code> it is given, on{" "}
           <code className="font-mono text-[0.9em] text-foreground">0.0.0.0</code>.
         </p>
+        <p className="text-prose mt-3 max-w-[60ch] text-muted-foreground">
+          Your container&apos;s CPU, memory and disk are on the Resources page, over 24 hours or 7 days,
+          with figures for each project.
+        </p>
       </Reveal>
     </section>
+  );
+}
+
+const TOKEN_SCOPES = [
+  "projects:read",
+  "deployments:read",
+  "deployments:write",
+  "logs:read",
+  "domains:read",
+  "resources:read",
+];
+
+/**
+ * Tokens, the API and MCP. The frame shows the two setup snippets the
+ * Developer page gives, with a placeholder token and host.
+ */
+function Agents() {
+  const origin = "https://your-nest-deploy";
+  const note = "border-t pt-5";
+  const term = "font-pixel text-[21px] leading-6 font-medium";
+  return (
+    <section id="agents" className={section}>
+      <Reveal className={wrap}>
+        <h2 className={cn(h2, "max-w-[20ch]")}>Built for scripts and AI agents.</h2>
+        <p className="text-docs-lead text-reading mt-6 max-w-[52ch]">
+          Make an access token on the Developer page and tick only what the job needs. A script or an AI
+          agent can then work with your projects without your password.
+        </p>
+        <div className="mt-14 grid gap-12 lg:grid-cols-2 lg:gap-20">
+          <div className="min-w-0">
+            <Frame label="API and MCP" tag="Example">
+              <div className="space-y-6 p-4 sm:p-6">
+                <div>
+                  <p className="text-caption font-mono text-subtle-foreground">List your projects</p>
+                  <pre
+                    tabIndex={0}
+                    role="region"
+                    aria-label="curl example"
+                    className="mt-2 overflow-x-auto py-1 font-mono text-[13px] leading-6"
+                  >
+                    {curlExample(origin).replace(" https://", " \\\n  https://")}
+                  </pre>
+                </div>
+                <div>
+                  <p className="text-caption font-mono text-subtle-foreground">Connect an AI agent</p>
+                  <pre
+                    tabIndex={0}
+                    role="region"
+                    aria-label="MCP client configuration"
+                    className="mt-2 overflow-x-auto py-1 font-mono text-[13px] leading-6"
+                  >
+                    {mcpConfigSnippet(origin)}
+                  </pre>
+                </div>
+              </div>
+            </Frame>
+          </div>
+          <div className="space-y-8 lg:pt-2">
+            <div className={note}>
+              <h3 className={term}>Scopes and expiry</h3>
+              <p className="text-prose mt-3 max-w-[48ch] text-muted-foreground">
+                A token holds one or more of six permissions and lasts 7, 30, 90 or 365 days. You can
+                rename it, change its permissions or revoke it at any time.
+              </p>
+              <ul className="text-caption mt-4 grid max-w-[30rem] grid-cols-2 gap-x-5 gap-y-1 font-mono text-foreground">
+                {TOKEN_SCOPES.map((scope) => (
+                  <li key={scope}>{scope}</li>
+                ))}
+              </ul>
+            </div>
+            <div className={note}>
+              <h3 className={term}>An API and an MCP endpoint</h3>
+              <p className="text-prose mt-3 max-w-[48ch] text-muted-foreground">
+                The API lives under{" "}
+                <code className="font-mono text-[0.9em] text-foreground">/api/v1</code>, and an{" "}
+                <a href="/api/v1/openapi.json" className="link text-foreground font-medium">
+                  OpenAPI description
+                </a>{" "}
+                lists every call. The MCP endpoint at{" "}
+                <code className="font-mono text-[0.9em] text-foreground">/api/mcp</code> lets an AI agent list
+                projects, deploy, read logs and check usage.
+              </p>
+            </div>
+            <div className={note}>
+              <h3 className={term}>What a token cannot do</h3>
+              <p className="text-prose mt-3 max-w-[48ch] text-muted-foreground">
+                It cannot open the terminal, change files, remove leftovers, change permissions, or manage your
+                account, sessions or tokens. Those need you, signed in to the browser.
+              </p>
+            </div>
+          </div>
+        </div>
+      </Reveal>
+    </section>
+  );
+}
+
+/** What else the app pages do, under the deployments demo. */
+const PRODUCT_NOTES = [
+  [
+    "Find the one you want",
+    "Search by commit, branch, author or pull request number. Filter by status, environment, project and time, and sort the list. The sample above keeps to the status filter.",
+  ],
+  [
+    "Compare and clean up",
+    "Pick two deployments to compare them side by side. Cancel builds, or delete old previews, in bulk.",
+  ],
+  [
+    "See the whole container",
+    "The Container page lists your projects, leftover services and folders with no project, and other processes listening on a port. A leftover is removed only after you confirm.",
+  ],
+  [
+    "Read what changed",
+    "Activity lists every change, with filters by kind and date and a readable detail for each entry. Secrets are hidden.",
+  ],
+];
+
+function ProductNotes() {
+  return (
+    <dl className="grid gap-x-10 gap-y-8 sm:grid-cols-2">
+      {PRODUCT_NOTES.map(([term, text]) => (
+        <div key={term} className="border-t pt-5">
+          <dt className="font-pixel text-[21px] leading-6 font-medium">{term}</dt>
+          <dd className="text-prose mt-3 max-w-[44ch] text-muted-foreground">{text}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -234,6 +392,22 @@ function Security() {
             logs and never sent back to your browser. Sign-in is Hack Club Auth, which has no route to your
             container.
           </p>
+          <p>
+            The <span className={em}>terminal</span> and <span className={em}>file changes</span> are off for
+            every server until you turn them on.
+          </p>
+          <ul className="space-y-3">
+            {[
+              "Turning either on needs a fresh Hack Club sign-in, made in the last 5 minutes.",
+              "File changes can only touch the shared folder. The live release is read-only.",
+              "An open terminal closes when you sign out or when its switch is turned off. It also ends after 10 minutes without input, or 60 minutes in total.",
+            ].map((line) => (
+              <li key={line} className="flex gap-3">
+                <span aria-hidden="true" className="mt-[11px] size-1.5 shrink-0 bg-foreground" />
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
           <p className={cn(em, "border-t pt-6")}>
             To take access back, delete the key in your Nest dashboard. It ends at once, and your apps keep
             running.
@@ -247,12 +421,25 @@ function Security() {
   );
 }
 
-const FAQ = [
+const FAQ: [string, React.ReactNode][] = [
   ["Is it free?", "Yes. Nest is free and so is this. Your limits are your container's own: 2 vCPU, 2 GB of memory and 16 GB of disk by default."],
   ["Is it an official Hack Club product?", "No. It is an independent project by a Hack Club member. The Nest team does not run it."],
   ["Does it work with private repositories?", "Yes. Nest Deploy reads whatever repositories you give the GitHub app access to, and only those."],
   ["Can I use my own domain?", "Yes, with one manual step. Nest maps domains to ports on its own dashboard and has no API for it, so we show you what to enter and check your DNS."],
   ["Does it run databases?", "No. It deploys your app. If you need a database, run one in your Nest container yourself and point the app at it with an environment variable."],
+  ["Can an AI agent use it?", "Yes. Make an access token with only the permissions the job needs and point the agent at the MCP endpoint, so it can list projects, deploy, read logs and check usage. A token cannot open the terminal, change files, remove leftovers or change permissions."],
+  ["Can it change my files or open a terminal?", "Only after you turn that on for a server and confirm with a fresh Hack Club sign-in. Both start off, and neither is ever open to a token."],
+  [
+    "Where are the numbers on /stats from?",
+    <>
+      From this installation&apos;s own records, as rounded totals, with anything under 10 shown as
+      &ldquo;fewer than 10&rdquo;. Nothing on the{" "}
+      <Link href="/stats" className="link text-foreground font-medium">
+        stats page
+      </Link>{" "}
+      identifies a person or a project.
+    </>,
+  ],
 ];
 
 /**
@@ -341,6 +528,7 @@ export default function HomePage() {
         frameLabel="Deployments"
         note="Push to main and it goes to production. Any other branch builds a preview on its own port, from 20000."
         detail="Production keeps your last five releases. Rolling back switches a symlink and restarts the service, so it takes seconds."
+        after={<ProductNotes />}
       >
         {/* On a phone the demo is too narrow for commit and branch, so those drop out. */}
         <div className="p-3 sm:p-6 max-sm:[&_p.font-mono]:hidden">
@@ -352,12 +540,14 @@ export default function HomePage() {
 
       <Runtimes />
 
+      <Agents />
+
       <Showcase
         flip
         title="A failed deploy puts the old release back."
         frameLabel="pixel-garden / a08c6f1"
         note="Nest Deploy waits for your app to answer on its port. If it never does, the previous release is put back."
-        detail="Build output streams to this page as it happens. Runtime logs come from your app's systemd service."
+        detail="Build output streams to this page as it happens. Runtime logs come from your app's systemd service. Show the last hour, day or week, only warnings and errors, search them, or download them as a text file."
       >
         <div className="p-4 sm:p-6">
           <BuildLogs deploymentId="sample" initialLines={SAMPLE_LOG} rawState="error" duration="48s" />
