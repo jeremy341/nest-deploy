@@ -9,7 +9,9 @@ export class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
-    readonly code = "error"
+    readonly code = "error",
+    /** Extra response headers, such as Retry-After on a 429. */
+    readonly headers?: Record<string, string>
   ) {
     super(message);
     this.name = "HttpError";
@@ -79,7 +81,7 @@ export function handle<C = unknown>(
       if (err instanceof HttpError) {
         return NextResponse.json(
           { error: { code: err.code, message: err.message } },
-          { status: err.status }
+          { status: err.status, headers: err.headers }
         );
       }
       if (err instanceof ZodError) {

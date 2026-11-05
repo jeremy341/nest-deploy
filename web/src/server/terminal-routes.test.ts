@@ -9,6 +9,12 @@ vi.mock("@/server/auth/current", () => ({
   getCurrentUser: async () => auth.user,
 }));
 
+// Ownership and the terminal switch are covered in terminal-permissions.test.ts.
+vi.mock("@/server/permission-guards", () => ({
+  requireProjectFeature: async () => ({}),
+  requireServerFeature: async () => {},
+}));
+
 import { GET as getActive, POST as openTerminal } from "@/app/api/projects/[id]/terminal/route";
 import { DELETE as closeTerminal } from "@/app/api/projects/[id]/terminal/[sessionId]/route";
 import { POST as sendInput } from "@/app/api/projects/[id]/terminal/[sessionId]/input/route";

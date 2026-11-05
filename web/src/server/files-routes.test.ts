@@ -5,6 +5,7 @@ import { upsertUser } from "@/server/auth/session";
 import { schema } from "@/server/db";
 import { createProject } from "@/server/projects";
 import { SshError } from "@/server/ssh/connection";
+import { rateLimiter } from "@/server/rate-limit";
 import { useFreshDb } from "@/server/test/db";
 
 // The route layer is real. Sign-in and the SSH session are replaced.
@@ -83,6 +84,8 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
+  // These tests make far more than 60 writes in a second; the limiter has its own tests.
+  rateLimiter().clear();
   calls.length = 0;
   reply = () => ({ code: 0 });
   session.exec.mockClear();

@@ -410,3 +410,81 @@ describe("identity banner", () => {
     expect(isSessionId("../etc/passwd")).toBe(false);
   });
 });
+
+describe("closeAllForUser", () => {
+  it("closes every terminal of one user, logs terminal.close with the reason, and leaves others alone", async () => {
+    const { manager, shells, audits } = setup();
+    await manager.open(ALICE, "p1", SIZE);
+    await manager.open(ALICE, "p2", SIZE);
+    await manager.open(BOB, "p3", SIZE);
+
+    const closed = await manager.closeAllForUser(ALICE, "signed-out");
+
+    expect(closed).toBe(2);
+    expect(manager.size).toBe(1);
+    expect(shells.map((s) => s.closed)).toEqual([1, 1, 0]);
+    expect(manager.active(ALICE, "p1")).toBeNull();
+    expect(manager.active(BOB, "p3")).not.toBeNull();
+    const closes = audits.filter((a) => a.action === "terminal.close");
+    expect(closes).toHaveLength(2);
+    expect(closes.every((a) => a.userId === ALICE && (a.meta as { reason: string }).reason === "signed-out")).toBe(true);
+  });
+
+  it("tells a stream that reconnects why it ended", async () => {
+    const { manager } = setup();
+    const { sessionId } = await manager.open(ALICE, "p1", SIZE);
+    await manager.closeAllForUser(ALICE, "signed-out");
+    const sub = manager.subscribe(ALICE, "p1", sessionId, { onData() {}, onEnd() {} });
+    expect(sub).toEqual({ ended: "signed-out" satisfies CloseReason });
+  });
+
+  it("can be limited to one server", async () => {
+    const shells: FakeShell[] = [];
+    const manager = new TerminalManager({
+      getProject: async (_u, id) => ({ id, serverId: id === "p1" ? "s1" : "s2", slug: id }),
+      connect: async () => {
+        const shell = new FakeShell();
+        shells.push(shell);
+        return { shell, uid: 0, host: "h" };
+      },
+      audit: async () => {},
+    });
+    await manager.open(ALICE, "p1", SIZE);
+    await manager.open(ALICE, "p2", SIZE);
+    expect(await manager.closeAllForUser(ALICE, "disabled", { serverId: "s1" })).toBe(1);
+    expect(shells.map((s) => s.closed)).toEqual([1, 0]);
+    expect(manager.active(ALICE, "p2")).not.toBeNull();
+  });
+
+  it("does nothing for a user with no terminals", async () => {
+    const { manager, audits } = setup();
+    expect(await manager.closeAllForUser(ALICE, "signed-out")).toBe(0);
+    expect(audits).toEqual([]);
+  });
+
+  it("does not let a terminal that was still connecting outlive the sign-out", async () => {
+    const shell = new FakeShell();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const manager = new TerminalManager({
+      getProject: async (_u, id) => ({ id, serverId: "s1", slug: id }),
+      connect: async () => {
+        await gate;
+        return { shell, uid: 0, host: "h" };
+      },
+      audit: async () => {},
+    });
+    const outcome = manager.open(ALICE, "p1", SIZE).then(
+      () => "opened",
+      (e: unknown) => (e instanceof HttpError ? e.status : -1)
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+    await manager.closeAllForUser(ALICE, "signed-out");
+    release();
+    expect(await outcome).toBe(403);
+    expect(shell.closed).toBe(1);
+    expect(manager.size).toBe(0);
+    expect(manager.active(ALICE, "p1")).toBeNull();
+  });
+});

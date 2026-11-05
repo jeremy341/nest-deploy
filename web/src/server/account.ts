@@ -3,6 +3,7 @@ import { audit } from "@/server/audit";
 import { sha256Hex } from "@/server/crypto";
 import { getDb, schema } from "@/server/db";
 import { HttpError, notFound } from "@/server/http";
+import { terminals } from "@/server/terminal";
 
 /** Everything the account page shows and changes. */
 
@@ -43,6 +44,8 @@ export async function revokeSession(userId: string, sessionId: string, currentTo
     .where(and(eq(schema.sessions.id, sessionId), eq(schema.sessions.userId, userId)))
     .returning({ id: schema.sessions.id });
   if (gone.length === 0) throw notFound("Session not found");
+  // A terminal belongs to the account, not to one browser: revoking a session closes them all.
+  await terminals().closeAllForUser(userId, "signed-out");
   await audit(userId, "account.session_revoke");
 }
 
@@ -54,6 +57,7 @@ export async function revokeOtherSessions(userId: string, currentToken: string |
     .delete(schema.sessions)
     .where(and(eq(schema.sessions.userId, userId), ne(schema.sessions.id, keep)))
     .returning({ id: schema.sessions.id });
+  if (gone.length > 0) await terminals().closeAllForUser(userId, "signed-out");
   await audit(userId, "account.sessions_revoke_all", null, { count: gone.length });
   return gone.length;
 }
@@ -100,6 +104,8 @@ export async function deleteAccount(userId: string, userName: string, typedName:
   if (typeof typedName !== "string" || typedName.trim() !== userName) {
     throw new HttpError(400, "Type your name exactly to confirm.", "validation");
   }
+  // Close first (and wait for its audit entry) so nothing is written after the account is gone.
+  await terminals().closeAllForUser(userId, "signed-out");
   const db = await getDb();
   await db.delete(schema.auditLog).where(eq(schema.auditLog.userId, userId));
   await db.delete(schema.users).where(eq(schema.users.id, userId));

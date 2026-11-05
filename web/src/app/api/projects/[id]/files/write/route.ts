@@ -1,4 +1,6 @@
 import { HttpError, authed, handle, ok } from "@/server/http";
+import { requireProjectFeature } from "@/server/permission-guards";
+import { enforceRateLimit } from "@/server/rate-limit";
 import { UPLOAD_LIMIT, checkProjectWrite, writeProjectFile } from "@/server/files";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -13,6 +15,10 @@ export const POST = handle<Ctx>(async (req, { params }) => {
   const { id } = await params;
   const path = req.nextUrl.searchParams.get("path") ?? "";
   const overwrite = req.nextUrl.searchParams.get("overwrite") === "1";
+
+  // The switch and the rate limit come before the body is read or SSH is touched.
+  await requireProjectFeature(user.id, id, "fileWrites");
+  enforceRateLimit("fileWrite", user.id);
 
   const declared = Number(req.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > UPLOAD_LIMIT) {

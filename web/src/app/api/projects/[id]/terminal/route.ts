@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { authed, handle, ok } from "@/server/http";
+import { requireProjectFeature } from "@/server/permission-guards";
 import { terminals, TERMINAL_LIMITS } from "@/server/terminal";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -15,10 +16,12 @@ const sizeInput = z
  * Open a shell on the project's container. Only ever called from the Open
  * button; it is not a link and not a prefetch. Replies with the session id the
  * other routes need, and the text the page shows about who the shell runs as.
+ * Refused with 403 before any SSH work when the owner has the terminal off.
  */
 export const POST = handle<Ctx>(async (req, { params }) => {
   const user = await authed();
   const { id } = await params;
+  await requireProjectFeature(user.id, id, "terminal");
   const raw = await req.json().catch(() => undefined);
   const size = sizeInput.parse(raw);
   const session = await terminals().open(user.id, id, size);

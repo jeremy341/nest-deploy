@@ -44,6 +44,8 @@ export type CloseReason =
   | "limit" // maxAgeMs reached
   | "shell-exit" // the shell ended (the user typed exit)
   | "connection-lost" // the SSH connection dropped
+  | "signed-out" // the account signed out, a session was revoked, or the account was deleted
+  | "disabled" // the owner turned the terminal off for this server
   | "error";
 
 export type TerminalSize = { cols: number; rows: number };
@@ -100,6 +102,7 @@ type Session = {
   id: string;
   userId: string;
   projectId: string;
+  serverId: string;
   shell: ShellHandle;
   banner: string;
   identity: string | null;
@@ -164,8 +167,11 @@ export class TerminalManager {
   private readonly sessions = new Map<string, Session>();
   /** `${userId}:${projectId}` -> session id, for the one-per-project rule. */
   private readonly byProject = new Map<string, string>();
-  /** Keys whose session is still being opened (connecting), so a second click cannot start another. */
-  private readonly opening = new Set<string>();
+  /**
+   * Keys whose session is still being opened (connecting), so a second click cannot start another.
+   * `cancelled` is set when the user signs out or the terminal is switched off mid-connect.
+   */
+  private readonly opening = new Map<string, { userId: string; serverId: string; cancelled: CloseReason | null }>();
   private readonly closedMemory = new Map<string, { userId: string; projectId: string; reason: CloseReason; until: number }>();
 
   constructor(deps: Partial<TerminalDeps> = {}) {
@@ -197,15 +203,26 @@ export class TerminalManager {
       throw new HttpError(503, "Too many terminals are open right now. Try again soon.", "busy");
     }
 
-    this.opening.add(key);
+    const pending = { userId, serverId: project.serverId, cancelled: null as CloseReason | null };
+    this.opening.set(key, pending);
     try {
       const { shell, uid, host } = await this.deps.connect(userId, project, checked);
+      if (pending.cancelled) {
+        // Signed out or switched off while connecting: the shell must not outlive that.
+        try {
+          shell.close();
+        } catch {
+          // Already gone.
+        }
+        throw new HttpError(403, "The terminal was closed before it opened.", "closed");
+      }
       const { identity, banner } = describeIdentity(uid, host);
       const now = this.deps.now();
       const session: Session = {
         id: this.deps.newId(),
         userId,
         projectId: project.id,
+        serverId: project.serverId,
         shell,
         banner,
         identity,
@@ -226,7 +243,7 @@ export class TerminalManager {
 
       shell.onData((chunk) => this.receive(session, chunk));
       shell.onClose((reason) =>
-        this.end(
+        void this.end(
           session,
           reason === "exit" ? "shell-exit" : reason === "connection-lost" ? "connection-lost" : "error"
         )
@@ -278,7 +295,7 @@ export class TerminalManager {
 
   /** Close the session now. */
   close(userId: string, projectId: string, sessionId: string): void {
-    this.end(this.owned(userId, projectId, sessionId), "closed");
+    void this.end(this.owned(userId, projectId, sessionId), "closed");
   }
 
   /**
@@ -302,6 +319,29 @@ export class TerminalManager {
     };
   }
 
+  /**
+   * Close every terminal a user has open (on one server when `serverId` is
+   * given), and cancel any that are still connecting. Used when a session is
+   * revoked, the user signs out, the account is deleted, or the terminal is
+   * switched off. Resolves once each close has been written to the audit log,
+   * with the number of open sessions that were closed.
+   */
+  async closeAllForUser(userId: string, reason: CloseReason, opts: { serverId?: string } = {}): Promise<number> {
+    const logs: Promise<void>[] = [];
+    for (const s of [...this.sessions.values()]) {
+      if (s.userId !== userId) continue;
+      if (opts.serverId !== undefined && s.serverId !== opts.serverId) continue;
+      logs.push(this.end(s, reason));
+    }
+    for (const p of this.opening.values()) {
+      if (p.userId !== userId) continue;
+      if (opts.serverId !== undefined && p.serverId !== opts.serverId) continue;
+      p.cancelled = reason;
+    }
+    await Promise.all(logs);
+    return logs.length;
+  }
+
   /** Number of open sessions. For tests and diagnostics. */
   get size(): number {
     return this.sessions.size;
@@ -309,7 +349,7 @@ export class TerminalManager {
 
   /** Close everything. For process shutdown and tests. */
   closeAll(): void {
-    for (const s of [...this.sessions.values()]) this.end(s, "closed");
+    for (const s of [...this.sessions.values()]) void this.end(s, "closed");
   }
 
   // ---------------------------------------------------------------------
@@ -380,14 +420,14 @@ export class TerminalManager {
   private check(s: Session) {
     if (s.closed) return;
     const now = this.deps.now();
-    if (now >= s.openedAt + TERMINAL_LIMITS.maxAgeMs) this.end(s, "limit");
-    else if (now >= s.lastInputAt + TERMINAL_LIMITS.idleMs) this.end(s, "idle");
+    if (now >= s.openedAt + TERMINAL_LIMITS.maxAgeMs) void this.end(s, "limit");
+    else if (now >= s.lastInputAt + TERMINAL_LIMITS.idleMs) void this.end(s, "idle");
     else this.schedule(s);
   }
 
-  /** The one place a session ends. Safe to call twice. */
-  private end(s: Session, reason: CloseReason) {
-    if (s.closed) return;
+  /** The one place a session ends. Safe to call twice. Resolves when the close is in the audit log. */
+  private end(s: Session, reason: CloseReason): Promise<void> {
+    if (s.closed) return Promise.resolve();
     s.closed = true;
     if (s.timer) clearTimeout(s.timer);
     s.timer = null;
@@ -419,7 +459,7 @@ export class TerminalManager {
     s.chunks = [];
     s.bufferedBytes = 0;
 
-    void this.deps.audit(s.userId, "terminal.close", s.projectId, {
+    return this.deps.audit(s.userId, "terminal.close", s.projectId, {
       project: s.projectId,
       reason,
       seconds: Math.round((this.deps.now() - s.openedAt) / 1000),
