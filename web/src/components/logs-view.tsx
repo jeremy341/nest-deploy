@@ -1,8 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowsClockwiseIcon, DownloadSimpleIcon, ListDashesIcon } from "@phosphor-icons/react";
+import {
+  ArrowsClockwiseIcon,
+  DownloadSimpleIcon,
+  ListDashesIcon,
+  WarningIcon,
+  XCircleIcon,
+} from "@phosphor-icons/react";
 import { api } from "@/components/api";
 import { Segmented } from "@/components/segmented";
 import { StatusIndicator } from "@/components/status-dot";
@@ -15,12 +21,36 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   DEFAULT_LOG_RANGE,
   LOG_RANGES,
+  lineLevels,
   logFileName,
   logFileText,
+  type LineLevel,
   type LogLevel,
   type LogRange,
 } from "@/lib/log-filter";
 import { cn } from "@/lib/utils";
+
+/**
+ * Says what a line is in words and shape, not only colour. The word is visible
+ * and a fixed width so the lines stay aligned. Lines that are neither get an
+ * empty slot of the same width.
+ */
+function LevelMark({ level }: { level: LineLevel }) {
+  if (level === "info") return <span aria-hidden="true" className="w-[4.5rem] shrink-0" />;
+  const isError = level === "error";
+  const Icon = isError ? XCircleIcon : WarningIcon;
+  return (
+    <span
+      className={cn(
+        "inline-flex w-[4.5rem] shrink-0 select-none items-center gap-1 font-sans text-xs font-medium",
+        isError ? "text-[var(--status-error)]" : "text-warning"
+      )}
+    >
+      <Icon aria-hidden="true" weight="fill" className="size-3.5 shrink-0" />
+      {isError ? "Error" : "Warning"}
+    </span>
+  );
+}
 
 const SKELETON_LINE_WIDTHS = ["w-4/5", "w-3/5", "w-11/12", "w-2/3", "w-1/2", "w-3/4", "w-5/6"];
 
@@ -89,6 +119,10 @@ export function LogsView({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  // Only the "Warnings and errors" view marks each line. Stack trace lines take
+  // the level of the error above them, so the whole trace is marked.
+  const levels = useMemo(() => (level === "problems" ? lineLevels(lines) : null), [level, lines]);
 
   useEffect(() => {
     if (timer.current) clearInterval(timer.current);
@@ -237,16 +271,30 @@ export function LogsView({
                   : "No log lines in this time range."}
           </p>
         ) : (
-          lines.map((l, i) => (
-            <p key={i} className="log-line whitespace-pre-wrap break-all">
-              {l}
-            </p>
-          ))
+          lines.map((l, i) => {
+            const mark = levels?.[i];
+            if (!levels) {
+              return (
+                <p key={i} className="log-line whitespace-pre-wrap break-all">
+                  {l}
+                </p>
+              );
+            }
+            return (
+              <p key={i} className="log-line flex gap-3 whitespace-pre-wrap">
+                <LevelMark level={mark ?? "info"} />
+                <span className="min-w-0 flex-1 break-all">{l}</span>
+              </p>
+            );
+          })
         )}
       </div>
       {level === "problems" ? (
         <p className="text-label text-muted-foreground">
-          Warnings and errors are found by words such as warn, error, failed and fatal in each line.
+          Warnings and errors are found from what each line says: a level such as [ERROR] or
+          level=warn, words like error, failed, fatal and warning, error names like TypeError:,
+          and the lines of a stack trace under an error. Counts of zero, like “0 errors”, do not
+          count.
         </p>
       ) : null}
     </div>
