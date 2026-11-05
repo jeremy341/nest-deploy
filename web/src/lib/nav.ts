@@ -9,6 +9,7 @@ import {
   FolderOpenIcon,
   TerminalWindowIcon,
   CubeFocusIcon,
+  CodeIcon,
   GlobeSimpleIcon,
   HardDrivesIcon,
   HouseLineIcon,
@@ -85,6 +86,12 @@ const TEAM_ITEMS: NavItem[] = [
     active: (p) => p.startsWith("/container"),
   },
   {
+    href: "/developer",
+    label: "Developer",
+    icon: CodeIcon,
+    active: (p) => p.startsWith("/developer"),
+  },
+  {
     href: "/connect",
     label: "Connect",
     icon: HardDrivesIcon,
@@ -100,6 +107,7 @@ const TEAM_TITLES: Record<string, string> = {
   "/domains": "Domains",
   "/activity": "Activity",
   "/container": "Container",
+  "/developer": "Developer",
   "/connect": "Connect a Server",
 };
 
