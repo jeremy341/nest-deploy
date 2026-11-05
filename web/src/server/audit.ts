@@ -57,6 +57,7 @@ export const LABELS: Record<string, string> = {
   "terminal.close": "Closed a terminal on",
   "token.create": "Created an access token",
   "token.revoke": "Revoked an access token",
+  "deploy.trigger": "Started a deployment",
   "file.write": "Saved a file on",
   "file.mkdir": "Created a folder on",
   "file.rename": "Renamed a file on",
