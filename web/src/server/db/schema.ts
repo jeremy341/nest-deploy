@@ -125,6 +125,25 @@ export const projects = sqliteTable(
     monitorSince: ts("monitor_since"),
     /** Failed checks in a row. One blip is not an outage. */
     monitorFailures: integer("monitor_failures").notNull().default(0),
+    /** Warn when the server's disk, memory or CPU load share reaches this percent. */
+    alertDiskPct: integer("alert_disk_pct").notNull().default(90),
+    alertMemPct: integer("alert_mem_pct").notNull().default(90),
+    alertCpuPct: integer("alert_cpu_pct").notNull().default(90),
+    /** Failed checks in a row before the app counts as down. */
+    alertFailures: integer("alert_failures").notNull().default(2),
+    /** A check slower than this many milliseconds counts as failed. Null means no limit. */
+    alertSlowMs: integer("alert_slow_ms"),
+    /** Which events go to the webhook. Deploy results also follow `notifyOn`. */
+    alertOnDown: integer("alert_on_down", { mode: "boolean" }).notNull().default(true),
+    alertOnRecovery: integer("alert_on_recovery", { mode: "boolean" }).notNull().default(true),
+    alertOnResource: integer("alert_on_resource", { mode: "boolean" }).notNull().default(true),
+    alertOnDeploy: integer("alert_on_deploy", { mode: "boolean" }).notNull().default(true),
+    /** Alerts are recorded but not sent until this time. */
+    alertMutedUntil: ts("alert_muted_until"),
+    /** Muted until someone resumes alerts. */
+    alertMutedForever: integer("alert_muted_forever", { mode: "boolean" })
+      .notNull()
+      .default(false),
     /** Public key for the analytics snippet. Null means analytics is off. */
     analyticsKey: text("analytics_key"),
     /** Unguessable id in the public status page URL. Null means there is no public page. */
@@ -343,4 +362,29 @@ export const projectSamples = sqliteTable(
     restarts: integer("restarts"),
   },
   (t) => [index("project_samples_idx").on(t.projectId, t.at)]
+);
+
+export const ALERT_TYPES = ["down", "disk", "memory", "cpu", "deploy"] as const;
+export type AlertType = (typeof ALERT_TYPES)[number];
+
+/**
+ * Alerts that fired, kept for 90 days. A row stays open (no `resolvedAt`)
+ * while the problem lasts, so one crossing fires once. Deploy results are
+ * single events and never resolve.
+ */
+export const alertEvents = sqliteTable(
+  "alert_events",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    type: text("type", { enum: ALERT_TYPES }).notNull(),
+    message: text("message").notNull(),
+    firedAt: ts("fired_at").notNull(),
+    resolvedAt: ts("resolved_at"),
+    /** True when alerts were muted as it fired, so nothing was sent. */
+    muted: integer("muted", { mode: "boolean" }).notNull().default(false),
+  },
+  (t) => [index("alert_events_project_idx").on(t.projectId, t.firedAt)]
 );
