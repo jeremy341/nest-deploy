@@ -59,6 +59,8 @@ export const LABELS: Record<string, string> = {
   "file.mkdir": "Created a folder on",
   "file.rename": "Renamed a file on",
   "file.delete": "Deleted a file on",
+  "container.permissions": "Changed container permissions for",
+  "terminal.revoked": "Closed a terminal after a sign-out on",
 };
 
 export function describeAction(action: string): string {

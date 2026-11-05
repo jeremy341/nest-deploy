@@ -52,6 +52,10 @@ export const servers = sqliteTable(
     keyFingerprint: text("key_fingerprint").notNull(),
     /** Pinned host key of the bastion (trust on first use). */
     hostKeyFingerprint: text("host_key_fingerprint"),
+    /** Container permissions. Defaults are the safer choice: the terminal is off until you turn it on. */
+    allowTerminal: integer("allow_terminal", { mode: "boolean" }).notNull().default(false),
+    allowFileWrites: integer("allow_file_writes", { mode: "boolean" }).notNull().default(true),
+    allowOrphanRemoval: integer("allow_orphan_removal", { mode: "boolean" }).notNull().default(true),
     status: text("status", { enum: ["pending", "connected", "error"] })
       .notNull()
       .default("pending"),
