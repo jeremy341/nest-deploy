@@ -20,12 +20,12 @@ export function AnalyticsSkeleton() {
     <LoadingRegion label="Loading analytics…" className="space-y-6">
       <SkeletonPageHeader description />
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         {[0, 1].map((i) => (
           <SkeletonCard key={i} className="p-4">
             <SkeletonText size="label" width="w-20" />
-            <div className="mt-1 flex h-10 items-center">
-              <Skeleton className="h-8 w-24" />
+            <div className={i === 0 ? "mt-1 flex h-12 items-center" : "mt-1 flex h-10 items-center"}>
+              <Skeleton className={i === 0 ? "h-9 w-32" : "h-8 w-24"} />
             </div>
           </SkeletonCard>
         ))}

@@ -15,6 +15,7 @@ import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { PixelAvatar } from "@/components/ui/pixel-avatar";
 import type { ProjectView } from "@/server/queries";
 import { cn } from "@/lib/utils";
 
@@ -146,7 +147,11 @@ export function ProjectSettings({
 
   return (
     <div className="motion-enter w-full max-w-[936px]">
-      <PageHeader title="Settings" />
+      <PageHeader
+        leading={<PixelAvatar seed={project.slug} size={40} />}
+        title="Settings"
+        description={`${project.name} on ${project.nestUsername}.hackclub.app`}
+      />
       <div className="grid gap-10 lg:grid-cols-[176px_minmax(0,720px)]">
         <SettingsNav />
 
@@ -327,7 +332,7 @@ export function ProjectSettings({
                 ))}
               </ul>
             ) : (
-              <p className="mt-4 text-muted-foreground">No variables yet.</p>
+              <p className="mt-4 text-muted-foreground">No variables yet. Add a name and a value above; they reach your server on the next deploy.</p>
             )}
           </Card>
 

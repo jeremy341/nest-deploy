@@ -136,8 +136,8 @@ export function LogsView({
     return (
       <EmptyState
         icon={<ListDashesIcon />}
-        title="No logs yet"
-        description="Logs appear here once you have a project."
+        title="Nothing to read yet"
+        description="Deploy a project and whatever it prints while it runs shows up here."
         action={
           <Link href="/new" className={cn(buttonVariants())}>
             New project
@@ -195,7 +195,7 @@ export function LogsView({
           placeholder="Search the last 1000 lines…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="max-w-80 flex-1 max-sm:max-w-none max-sm:basis-full"
+          className="min-w-[14rem] max-w-80 flex-1 max-sm:max-w-none max-sm:basis-full"
         />
         <Segmented<LogRange>
           label="Time range"
@@ -242,6 +242,19 @@ export function LogsView({
         </Alert>
       ) : null}
 
+      {/* What is on screen, in one line. Not a live region: auto refresh would chatter. */}
+      <p className="tabular min-h-[18px] text-label text-muted-foreground">
+        {!showSkeleton && !error ? (
+          <>
+            {lines.length} {lines.length === 1 ? "line" : "lines"} from{" "}
+            <span className="text-foreground">
+              {projects.find((p) => p.id === projectId)?.name}
+            </span>
+            , last {LOG_RANGES.find((r) => r.value === range)?.label ?? range}.
+          </>
+        ) : null}
+      </p>
+
       <div
         role="log"
         aria-label="Runtime logs"
@@ -268,7 +281,7 @@ export function LogsView({
                 ? `No lines match “${term}”.`
                 : level === "problems"
                   ? "No warnings or errors in this time range."
-                  : "No log lines in this time range."}
+                  : "Nothing printed in this time range. Try a longer one."}
           </p>
         ) : (
           lines.map((l, i) => {

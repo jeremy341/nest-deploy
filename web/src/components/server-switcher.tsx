@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { CaretUpDownIcon, CheckIcon, PlusIcon } from "@phosphor-icons/react";
-import { initials, useAccount } from "@/components/account-context";
+import { useAccount } from "@/components/account-context";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { PixelAvatar } from "@/components/ui/pixel-avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,15 +31,14 @@ export function ServerSwitcher({ className }: { className?: string }) {
           className
         )}
       >
-        <Avatar size="sm">
-          <AvatarFallback className="text-[10px] font-medium uppercase">
-            {current ? initials(current.nestUsername) : "+"}
-          </AvatarFallback>
-        </Avatar>
+        {current ? (
+          <PixelAvatar seed={current.nestUsername} size={20} />
+        ) : (
+          <Avatar size="sm">
+            <AvatarFallback className="text-[10px] font-medium">+</AvatarFallback>
+          </Avatar>
+        )}
         <span className="min-w-0 flex-1 truncate">{label}</span>
-        <Badge variant="outline" className="font-normal">
-          Nest
-        </Badge>
         <CaretUpDownIcon aria-hidden="true" className="size-4 shrink-0 text-subtle-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-64" align="start">
@@ -50,11 +49,7 @@ export function ServerSwitcher({ className }: { className?: string }) {
           ) : (
             servers.map((s, i) => (
               <DropdownMenuItem key={s.id} render={<Link href="/connect" />}>
-                <Avatar size="sm">
-                  <AvatarFallback className="text-[10px] font-medium uppercase">
-                    {initials(s.nestUsername)}
-                  </AvatarFallback>
-                </Avatar>
+                <PixelAvatar seed={s.nestUsername} size={20} />
                 <span className="truncate">{s.host === "hackclub.app" ? `${s.nestUsername}.hackclub.app` : s.host}</span>
                 {i === 0 ? <CheckIcon className="ml-auto" /> : null}
               </DropdownMenuItem>

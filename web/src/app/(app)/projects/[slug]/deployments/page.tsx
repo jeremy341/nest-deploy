@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { DeploymentsView } from "@/components/deployments-view";
 import { PageHeader } from "@/components/page-header";
+import { FactLine, toneOf } from "@/components/pixel-kit";
 import { DeploymentsSkeleton } from "@/components/skeletons/deployments";
 import { requireUser } from "@/server/auth/current";
 import { deploymentViews, projectViews } from "@/server/queries";
@@ -20,9 +21,24 @@ async function Content({ params }: Props) {
   if (!project) notFound();
   const deployments = await deploymentViews(user.id, { projectId: project.id });
 
+  const newest = deployments[0];
+
   return (
     <div className="motion-enter">
-      <PageHeader title="Deployments" description="Every release of this project, newest first." />
+      <PageHeader
+        title="Deployments"
+        description={
+          newest ? (
+            <FactLine tones={deployments.slice(0, 24).map((d) => toneOf(d.state))}>
+              {deployments.length} {deployments.length === 1 ? "deployment" : "deployments"}. The
+              newest {newest.state === "error" ? "failed" : `is ${newest.state}`}
+              {newest.age ? `, ${newest.age}` : ""}.
+            </FactLine>
+          ) : (
+            "Every release of this project, newest first."
+          )
+        }
+      />
       <DeploymentsView deployments={deployments} showProject={false} />
     </div>
   );

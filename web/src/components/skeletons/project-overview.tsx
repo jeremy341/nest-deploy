@@ -24,17 +24,19 @@ export function ProjectOverviewSkeleton() {
       <SkeletonPageHeader leading description actions={4} />
 
       <SkeletonCard header footer>
-        <dl className="grid gap-x-6 gap-y-5 p-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Field />
-          <Field />
-          <Field />
-          <Field />
-          <div className="min-w-0 sm:col-span-2">
-            <SkeletonText size="label" width="w-16" className="mb-1" />
-            <SkeletonText size="body" width="w-40" />
-            <SkeletonText size="body" width="w-56" className="mt-1" />
+        <div className="p-4">
+          <div className="flex h-6 items-center">
+            <Skeleton className="h-4 w-80 max-w-full rounded-sm" />
           </div>
-        </dl>
+          <div className="mt-1.5 flex h-[18px] items-center">
+            <Skeleton className="h-3 w-48 max-w-full rounded-sm" />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-x-8 gap-y-3 border-t pt-4">
+            <Field />
+            <Field />
+            <Field />
+          </div>
+        </div>
         <div className="flex h-[45px] items-center border-t px-4">
           <SkeletonText size="body" width="w-36" />
         </div>

@@ -1,0 +1,9 @@
+/*
+ * Dashboard-only touches. Imported by the (app) layout, so the public status
+ * page and the homepage sample keep their round status dots.
+ *
+ * A status mark in the dashboard is a lit square, not a dot.
+ */
+[data-app-content] [data-mark] {
+  border-radius: 1px;
+}

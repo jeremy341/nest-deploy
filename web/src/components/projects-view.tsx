@@ -35,8 +35,8 @@ export function ProjectsView({
     return (
       <EmptyState
         icon={<HardDrivesIcon />}
-        title="Connect your Nest server"
-        description="Add a dedicated SSH key in the Nest dashboard and Nest Deploy can start deploying to your container."
+        title="Connect your Nest container first"
+        description="Nest Deploy makes a key for you. Paste it into the SSH Keys page of the Nest dashboard and your apps can run there."
         action={
           <Button render={<Link href="/connect" />}>Connect a server</Button>
         }
@@ -48,9 +48,9 @@ export function ProjectsView({
     return (
       <EmptyState
         icon={<GitBranchIcon />}
-        title="No projects yet"
-        description="Import a GitHub repository and it will be built and run on your Nest server."
-        action={<Button render={<Link href="/new" />}>Add your first project</Button>}
+        title="Import your first repository"
+        description="Nest Deploy builds it and runs it on your Nest server. You can watch the build as it happens."
+        action={<Button render={<Link href="/new" />}>Import a repository</Button>}
       />
     );
   }

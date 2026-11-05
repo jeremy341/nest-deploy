@@ -83,7 +83,7 @@ export function DeployHookCard({ project }: { project: ProjectView }) {
           stops working at once.
         </p>
       ) : (
-        <p className="text-muted-foreground">No hook yet.</p>
+        <p className="text-muted-foreground">No hook yet. Create one to get a URL you can call from CI.</p>
       )}
       <p className="mt-3 text-label text-muted-foreground">
         An optional body of <code className="font-mono">{`{ "branch": "my-branch" }`}</code> builds
@@ -678,7 +678,7 @@ export function AlertsCard({ project }: { project: ProjectView }) {
             </h3>
             <p className="mt-0.5 text-label text-muted-foreground">Kept for 90 days.</p>
             {history.length === 0 ? (
-              <p className="mt-3 text-muted-foreground">Nothing has fired yet.</p>
+              <p className="mt-3 text-muted-foreground">Nothing has fired yet. Every alert will be listed here, sent or not.</p>
             ) : (
               <ul className="hairline-y mt-3 overflow-hidden rounded-md shadow-border-base">
                 {history.map((ev) => (

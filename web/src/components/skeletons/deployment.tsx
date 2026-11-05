@@ -26,7 +26,7 @@ export function DeploymentSkeleton() {
 
       <SkeletonCard header>
         <dl className="grid gap-x-6 gap-y-5 p-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }, (_, i) => (
+          {Array.from({ length: 5 }, (_, i) => (
             <Field key={i} />
           ))}
           <div className="min-w-0 sm:col-span-2 lg:col-span-3">

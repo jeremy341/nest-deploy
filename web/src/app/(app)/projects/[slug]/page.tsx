@@ -162,69 +162,62 @@ async function ProjectContent({ params }: Props) {
         </div>
 
         {live ? (
-          <dl className="grid gap-x-6 gap-y-5 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="Deployment">
-              <Link
-                href={`/projects/${slug}/deployments/${live.id}`}
-                className="link font-mono text-[13px] font-normal"
-              >
-                {live.id.slice(0, 8)}
-              </Link>
-            </Field>
-            <Field label="Status">
-              <StatusDot state={live.state} />
-            </Field>
-            <Field label="Created">
-              <span className="inline-flex items-center gap-2">
-                {live.age}
-                <Avatar size="sm">
-                  <AvatarFallback className="text-[10px] uppercase">
-                    {(live.author ?? "?").slice(0, 2)}
-                  </AvatarFallback>
-                </Avatar>
+          <div className="p-4">
+            {/* What is live, in the words of the person who shipped it. */}
+            <p className="text-body-lg font-medium tracking-[-0.02em]">
+              {live.commit ?? `${live.source} deployment`}
+            </p>
+            <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-label text-muted-foreground">
+              <Avatar size="sm">
+                <AvatarFallback className="text-[10px] uppercase">
+                  {(live.author ?? "?").slice(0, 2)}
+                </AvatarFallback>
+              </Avatar>
+              <span>
+                Deployed <span className="tabular">{live.age}</span>
+                {live.author ? ` by ${live.author}` : ""}
               </span>
-            </Field>
-            <Field label="Address">
-              {address ? (
-                <a
-                  href={`https://${address}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="link break-all"
-                >
-                  {address}
-                  <span className="sr-only"> (opens in a new tab)</span>
-                </a>
-              ) : (
-                <span className="font-normal text-muted-foreground">
-                  Port <span className="font-mono">{project.port}</span>.{" "}
-                  <Link href="/domains" className="link">
-                    Add a domain
-                  </Link>
-                </span>
-              )}
-            </Field>
-            <div className="min-w-0 sm:col-span-2">
-              <dt className="mb-1 text-label text-muted-foreground">Source</dt>
-              <dd className="space-y-1">
-                <p className="flex items-center gap-1.5 font-mono text-[13px]">
+            </p>
+            <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3 border-t pt-4">
+              <Field label="Branch">
+                <span className="inline-flex items-center gap-1.5 font-mono text-[13px] font-normal">
                   <GitBranchIcon aria-hidden="true" className="size-4 shrink-0" />
                   {live.branch}
-                </p>
-                <p className="flex min-w-0 items-center gap-1.5">
+                </span>
+              </Field>
+              <Field label="Commit">
+                <span className="inline-flex items-center gap-1.5">
                   <GitCommitIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-                  <CommitLink repo={live.repo} sha={live.sha} className="shrink-0 font-mono text-[13px]" />
-                  <span className="truncate">{live.commit}</span>
-                </p>
-              </dd>
-            </div>
-          </dl>
+                  <CommitLink repo={live.repo} sha={live.sha} className="font-mono text-[13px] font-normal" />
+                </span>
+              </Field>
+              <Field label="Deployment">
+                <Link
+                  href={`/projects/${slug}/deployments/${live.id}`}
+                  className="link font-mono text-[13px] font-normal"
+                >
+                  {live.id.slice(0, 8)}
+                </Link>
+              </Field>
+              {address ? null : (
+                <Field label="Address">
+                  <span className="font-normal text-muted-foreground">
+                    Port <span className="font-mono">{project.port}</span>.{" "}
+                    <Link href="/domains" className="link">
+                      Add a domain
+                    </Link>
+                  </span>
+                </Field>
+              )}
+            </dl>
+          </div>
         ) : (
           <div className="px-4 py-10 text-center">
             <p className="font-medium">Nothing is live yet</p>
             <p className="mx-auto mt-1 max-w-[46ch] text-muted-foreground">
-              Press Deploy to build <span className="font-mono text-[13px]">{project.branch}</span>{" "}
-              and start it on {project.nestUsername}.hackclub.app.
+              Press Deploy and Nest Deploy builds{" "}
+              <span className="font-mono text-[13px]">{project.branch}</span> and starts it on{" "}
+              {project.nestUsername}.hackclub.app. The build log opens as it runs.
             </p>
           </div>
         )}
@@ -366,11 +359,11 @@ async function ProjectContent({ params }: Props) {
                 >
                   {d.branch}
                 </Link>
-                <StatusDot state={d.state} showLabel={false} />
+                <StatusDot state={d.state} showLabel={d.state !== "ready"} />
                 <span className="hidden font-mono text-[13px] text-muted-foreground sm:inline-flex">
                   {d.sha ? <CommitLink repo={d.repo} sha={d.sha} /> : d.id.slice(0, 7)}
                 </span>
-                <span className="shrink-0 text-muted-foreground">{d.age}</span>
+                <span className="tabular shrink-0 text-muted-foreground">{d.age}</span>
               </li>
             ))}
           </ul>

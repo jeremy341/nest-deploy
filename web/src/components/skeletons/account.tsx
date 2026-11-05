@@ -58,7 +58,7 @@ function SessionList({ rows }: { rows: number }) {
 export function AccountSkeleton() {
   return (
     <LoadingRegion label="Loading account…" className="mx-auto max-w-[720px]">
-      <SkeletonPageHeader description />
+      <SkeletonPageHeader leading description />
       <div className="space-y-6">
         <SkeletonCard>
           <CardBody>

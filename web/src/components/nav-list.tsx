@@ -14,7 +14,17 @@ export const navItemClass =
   "flex h-8 items-center gap-2.5 rounded-md px-2 font-medium tracking-[-0.02em] transition-colors duration-(--dur-fast) focus-visible:outline-offset-[-2px]";
 export const navItemIdle =
   "text-muted-foreground hover:bg-[var(--ds-gray-alpha-100)] hover:text-foreground";
-export const navItemCurrent = "bg-[var(--ds-gray-200)] text-foreground";
+export const navItemCurrent = "bg-[var(--ds-gray-alpha-100)] text-foreground";
+
+/**
+ * Items that open a new group get a little air above them, so nine links read
+ * as three small clusters instead of one long list.
+ */
+const GROUP_STARTS = new Set(["/resources", "/container", "/files", "/settings"]);
+function startsGroup(href: string) {
+  const last = "/" + href.split("/").pop();
+  return GROUP_STARTS.has(last);
+}
 
 /** Sidebar links. Switches to project links inside a project. */
 export function NavList({
@@ -65,6 +75,7 @@ export function NavList({
             className={cn(
               navItemClass,
               roomy && "h-11",
+              i > 0 && startsGroup(item.href) && (roomy ? "mt-3" : "mt-2.5"),
               active ? navItemCurrent : navItemIdle
             )}
           >
@@ -74,6 +85,10 @@ export function NavList({
               weight={active ? "fill" : "regular"}
             />
             {item.label}
+            {/* The one lit square: you are here. */}
+            {active ? (
+              <span aria-hidden="true" className="ml-auto size-1.5 shrink-0 rounded-[1px] bg-foreground" />
+            ) : null}
           </Link>
         );
       })}

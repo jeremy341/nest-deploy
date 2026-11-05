@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowsLeftRightIcon,
@@ -111,7 +112,18 @@ export function DeploymentsView({
       <EmptyState
         icon={<CubeIcon />}
         title="No deployments yet"
-        description="Deploy a project and its releases will be listed here."
+        description={
+          showProject
+            ? "Open a project and press Deploy. Every build and release lands here, newest first."
+            : "Press Deploy on the overview. Every build and release of this project lands here, newest first."
+        }
+        action={
+          showProject ? (
+            <Button variant="outline" render={<Link href="/projects" />}>
+              Go to projects
+            </Button>
+          ) : undefined
+        }
       />
     );
   }
@@ -305,7 +317,11 @@ export function DeploymentsView({
               />
               Select all shown
             </label>
-            <p role="status" aria-live="polite" className="text-label text-muted-foreground">
+            <p
+              role="status"
+              aria-live="polite"
+              className={cn("tabular text-label text-muted-foreground", !filtered && "sr-only")}
+            >
               {filtered
                 ? `${visible.length} of ${deployments.length} deployments`
                 : `${deployments.length} deployments`}

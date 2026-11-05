@@ -62,7 +62,18 @@ async function Content({ params }: Props) {
             Deployment <span className="font-mono">{id.slice(0, 8)}</span>
           </>
         }
-        description={d.commit ?? undefined}
+        description={
+          <span className="flex flex-col gap-1">
+            <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 text-foreground">
+              <StatusDot state={d.state} />
+              {d.state !== "building" && d.state !== "queued" ? (
+                <span className="tabular text-muted-foreground">{d.duration}</span>
+              ) : null}
+              {d.isCurrent ? <span className="text-muted-foreground">Current release</span> : null}
+            </span>
+            {d.commit ? <span>{d.commit}</span> : null}
+          </span>
+        }
         actions={
           <>
             {address ? (
@@ -106,12 +117,6 @@ async function Content({ params }: Props) {
               </Avatar>
               {d.author ?? d.source}
               <span className="font-normal text-muted-foreground">{d.age}</span>
-            </span>
-          </Field>
-          <Field label="Status">
-            <span className="inline-flex items-center gap-2">
-              <StatusDot state={d.state} />
-              {d.isCurrent ? <span className="font-normal text-muted-foreground">Current</span> : null}
             </span>
           </Field>
           <Field label="Duration">{d.duration}</Field>

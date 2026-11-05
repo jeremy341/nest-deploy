@@ -181,7 +181,7 @@ export function DomainsView({
       <EmptyState
         icon={<HardDrivesIcon />}
         title="Connect a server first"
-        description="Then you can record domains for it."
+        description="Domains are recorded against a Nest container, so there has to be one to point them at."
         action={
           <Link href="/connect" className={cn(buttonVariants())}>
             Connect a server
@@ -284,8 +284,8 @@ export function DomainsView({
       {initial.length === 0 ? (
         <EmptyState
           icon={<GlobeSimpleIcon />}
-          title="No domains recorded yet"
-          description="Add one above. Nest maps domains to ports on its own dashboard, so add it there too."
+          title="No domains yet"
+          description="Type a domain and its port above to have Nest Deploy check its DNS. Nest does the routing, so add the same domain on its dashboard too."
         />
       ) : (
         <Stagger
@@ -298,7 +298,7 @@ export function DomainsView({
               <li key={d.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3">
                 <div className="min-w-0 max-sm:w-full">
                   <p className="truncate font-medium tracking-[-0.02em]">{d.domain}</p>
-                  <p className="text-label text-muted-foreground">
+                  <p className="tabular text-label text-muted-foreground">
                     Port <span className="font-mono">{d.port}</span>
                     {d.projectName ? <> · {d.projectName}</> : null}
                   </p>

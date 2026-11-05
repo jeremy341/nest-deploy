@@ -30,9 +30,9 @@ export function PageHeader({
         <div className="min-w-0">
           <h1 className="truncate text-title-1">{title}</h1>
           {description ? (
-            <p className="mt-1 max-w-[60ch] text-muted-foreground">
+            <div className="mt-1 max-w-[64ch] text-muted-foreground">
               {description}
-            </p>
+            </div>
           ) : null}
         </div>
       </div>

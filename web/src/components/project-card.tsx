@@ -4,13 +4,27 @@ import {
   GithubLogoIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { CommitLink } from "@/components/commit-link";
-import { StatusDot } from "@/components/status-dot";
+import { StatusDot, StatusIndicator } from "@/components/status-dot";
 import { PixelAvatar } from "@/components/ui/pixel-avatar";
 import type { ProjectView } from "@/server/queries";
 
 function commitText(project: ProjectView) {
   return (
     project.lastCommit ?? (project.state ? "Deployment in progress" : "Not deployed yet")
+  );
+}
+
+/** The state mark: quiet when ready, a word when not. A monitor that cannot reach the app wins. */
+function ProjectStatus({ project }: { project: ProjectView }) {
+  if (project.monitor === "down") {
+    return <StatusIndicator tone="error" label="Not answering" className="shrink-0" />;
+  }
+  return (
+    <StatusDot
+      state={project.state}
+      showLabel={project.state !== "ready"}
+      className="shrink-0"
+    />
   );
 }
 
@@ -50,7 +64,7 @@ export function ProjectCard({
             {project.lastAge}
           </span>
         ) : null}
-        <StatusDot state={project.state} showLabel={false} />
+        <ProjectStatus project={project} />
       </Link>
     );
   }
@@ -69,7 +83,7 @@ export function ProjectCard({
           </p>
           <p className="truncate text-label text-muted-foreground">{address}</p>
         </div>
-        <StatusDot state={project.state} showLabel={false} />
+        <ProjectStatus project={project} />
       </div>
 
       <p className="flex min-w-0 items-center gap-2">
@@ -92,7 +106,7 @@ export function ProjectCard({
         {project.lastAge ? (
           <>
             <span aria-hidden="true">·</span>
-            <span className="shrink-0">{project.lastAge}</span>
+            <span className="tabular shrink-0">{project.lastAge}</span>
           </>
         ) : null}
       </p>

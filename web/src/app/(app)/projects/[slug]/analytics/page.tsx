@@ -24,11 +24,30 @@ export async function generateMetadata({ params }: Props) {
 
 const number = new Intl.NumberFormat("en");
 
-function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
+function Stat({
+  label,
+  value,
+  note,
+  lead = false,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+  /** The number the page is about: set larger than its neighbour. */
+  lead?: boolean;
+}) {
   return (
     <div className="rounded-lg bg-card p-4 shadow-border-small">
       <p className="text-label text-muted-foreground">{label}</p>
-      <p className="tabular mt-1 text-stat">{value}</p>
+      <p
+        className={
+          lead
+            ? "tabular mt-1 text-[44px] leading-[48px] font-semibold tracking-[-0.03em]"
+            : "tabular mt-1 text-stat"
+        }
+      >
+        {value}
+      </p>
       {note ? <p className="mt-1 text-caption text-muted-foreground">{note}</p> : null}
     </div>
   );
@@ -109,8 +128,8 @@ async function Content({ params }: Props) {
         />
       ) : (
         <>
-          <Stagger as="div" className="grid gap-4 sm:grid-cols-2">
-            <Stat label="Page views" value={number.format(summary.views)} />
+          <Stagger as="div" className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <Stat lead label="Page views" value={number.format(summary.views)} />
             <Stat
               label="Visitors"
               value={number.format(summary.visitors)}

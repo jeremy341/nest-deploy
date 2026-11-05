@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { GitBranchIcon } from "@phosphor-icons/react/dist/ssr";
+import { FactLine, toneOf, type PixelTone } from "@/components/pixel-kit";
 import { ProjectsView } from "@/components/projects-view";
 import { ProjectsSkeleton } from "@/components/skeletons/projects";
 import { StatusDot, StatusIndicator } from "@/components/status-dot";
@@ -79,6 +80,8 @@ export default function ProjectsPage() {
   );
 }
 
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
 async function ProjectsContent() {
   const user = await requireUser();
   const [projects, servers, recent, alerts] = await Promise.all([
@@ -91,95 +94,86 @@ async function ProjectsContent() {
   const failing = projects.filter((p) => p.state === "error" && p.monitor !== "down");
   const pressure = servers[0]?.usage ? resourcePressure(servers[0].usage, alerts.limits) : [];
 
-  const needsAttention = down.length + failing.length + pressure.length + alerts.muted.length > 0;
+  const attention = down.length + failing.length + pressure.length;
+  const needsAttention = attention + alerts.muted.length > 0;
+  const building = projects.filter((p) => p.state === "building" || p.state === "queued").length;
+  const tones: PixelTone[] = projects.map((p) => (p.monitor === "down" ? "error" : toneOf(p.state)));
 
   return (
     <div className="motion-enter space-y-6">
       <h1 className="sr-only">Projects</h1>
 
-      {/* Only shown when something is wrong, so a healthy page has nothing extra on it. */}
-      {needsAttention ? (
-        <section
-          aria-labelledby="alerts-heading"
-          className="overflow-hidden rounded-lg bg-card shadow-border-small"
-        >
-          <h2 id="alerts-heading" className="border-b px-4 py-3 text-title-3">
-            Needs attention
-          </h2>
-          <ul className="hairline-y">
-            {down.map((p) => (
-                            <li key={`down-${p.id}`} className="px-4 py-3">
-                              <StatusIndicator
-                                tone="error"
-                                label={
-                                  <Link
-                                    href={`/projects/${p.slug}`}
-                                    className="text-foreground underline-offset-4 hover:underline"
-                                  >
-                                    {p.name}
-                                  </Link>
-                                }
-                              />
-                              <p className="mt-0.5 text-muted-foreground">
-                                Not answering{p.monitorSince ? ` since ${p.monitorSince}` : ""}.
-                              </p>
-                            </li>
-                          ))}
-                          {pressure.map((item) => (
-                            <li key={item.label} className="px-4 py-3">
-                              <StatusIndicator tone="warning" label={item.label} />
-                              <p className="mt-0.5 text-muted-foreground">{item.text}</p>
-                            </li>
-                          ))}
-                          {failing.map((p) => (
-                            <li key={p.id} className="px-4 py-3">
-                              <StatusIndicator
-                                tone="error"
-                                label={
-                                  <Link
-                                    href={`/projects/${p.slug}`}
-                                    className="text-foreground underline-offset-4 hover:underline"
-                                  >
-                                    {p.name}
-                                  </Link>
-                                }
-                              />
-                              <p className="mt-0.5 text-muted-foreground">
-                                The latest deployment failed. Open it to see why.
-                              </p>
-                            </li>
-                          ))}
-                          {alerts.muted.map((p) => (
-                            <li key={`muted-${p.id}`} className="px-4 py-3">
-                              <StatusIndicator
-                                tone="neutral"
-                                label={
-                                  <Link
-                                    href={`/projects/${p.slug}/settings#alerts-heading`}
-                                    className="text-foreground underline-offset-4 hover:underline"
-                                  >
-                                    {p.name}
-                                  </Link>
-                                }
-                              />
-                              <p className="mt-0.5 text-muted-foreground">
-                                Alerts are paused
-                                {p.until ? ` until ${mutedUntil(p.until)}` : " until you resume them"}.
-                              </p>
-                            </li>
-                          ))}
-          </ul>
-        </section>
+      {/* The one fact: how many, and whether any of them needs you. */}
+      {projects.length > 0 ? (
+        <p className="text-body-lg">
+          <FactLine tones={tones}>
+            {plural(projects.length, "project", "projects")}.{" "}
+            {attention > 0
+              ? `${plural(attention, "item needs", "items need")} attention.`
+              : "Nothing needs attention."}
+            {building > 0 ? ` ${building} building.` : ""}
+          </FactLine>
+        </p>
       ) : null}
 
-      <UsageCard server={servers[0]} />
-
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0">
+        <div className="min-w-0 space-y-6">
+          {/* Only shown when something is wrong, so a healthy page has nothing extra on it. */}
+          {needsAttention ? (
+            <section
+              aria-labelledby="alerts-heading"
+              className="overflow-hidden rounded-lg bg-card shadow-border-small"
+            >
+              <h2 id="alerts-heading" className="border-b px-4 py-3 text-title-3">
+                Needs attention
+              </h2>
+              <ul className="hairline-y">
+                {down.map((p) => (
+                  <li key={`down-${p.id}`} className="px-4 py-3">
+                    <StatusIndicator tone="error" label={<ProjectLink slug={p.slug} name={p.name} />} />
+                    <p className="mt-0.5 text-muted-foreground">
+                      Not answering{p.monitorSince ? ` since ${p.monitorSince}` : ""}.
+                    </p>
+                  </li>
+                ))}
+                {pressure.map((item) => (
+                  <li key={item.label} className="px-4 py-3">
+                    <StatusIndicator tone="warning" label={item.label} />
+                    <p className="mt-0.5 text-muted-foreground">{item.text}</p>
+                  </li>
+                ))}
+                {failing.map((p) => (
+                  <li key={p.id} className="px-4 py-3">
+                    <StatusIndicator tone="error" label={<ProjectLink slug={p.slug} name={p.name} />} />
+                    <p className="mt-0.5 text-muted-foreground">
+                      The latest deployment failed. Open it to see why.
+                    </p>
+                  </li>
+                ))}
+                {alerts.muted.map((p) => (
+                  <li key={`muted-${p.id}`} className="px-4 py-3">
+                    <StatusIndicator
+                      tone="neutral"
+                      label={
+                        <ProjectLink slug={p.slug} name={p.name} to="settings#alerts-heading" />
+                      }
+                    />
+                    <p className="mt-0.5 text-muted-foreground">
+                      Alerts are paused
+                      {p.until ? ` until ${mutedUntil(p.until)}` : " until you resume them"}.
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
           <ProjectsView projects={projects} hasServer={servers.length > 0} />
         </div>
-        {recent.length > 0 ? (
-          <aside className="min-w-0" aria-label="Recent activity">
+
+        <aside className="min-w-0 space-y-6" aria-label="Container and recent deployments">
+          <UsageCard server={servers[0]} />
+          {recent.length > 0 ? (
             <SideCard id="recent-heading" title="Recent deployments">
               <ul className="hairline-y">
                 {recent.map((d) => (
@@ -194,7 +188,7 @@ async function ProjectsContent() {
                       >
                         {d.projectName}
                       </Link>
-                      <StatusDot state={d.state} showLabel={false} />
+                      <StatusDot state={d.state} showLabel={d.state !== "ready"} className="shrink-0" />
                     </div>
                     <p className="mt-0.5 truncate text-muted-foreground">
                       {d.commit ?? `${d.source} deployment`}
@@ -203,7 +197,7 @@ async function ProjectsContent() {
                       <GitBranchIcon aria-hidden="true" className="size-3.5 shrink-0" />
                       <span className="truncate font-mono">{d.branch}</span>
                       <span aria-hidden="true">·</span>
-                      <span className="shrink-0">{d.age}</span>
+                      <span className="tabular shrink-0">{d.age}</span>
                     </p>
                   </li>
                 ))}
@@ -215,8 +209,20 @@ async function ProjectsContent() {
                 All deployments
               </Link>
             </SideCard>
-          </aside>
-        ) : null}
+          ) : null}
+        </aside>
       </div>
     </div>
-  );}
+  );
+}
+
+function ProjectLink({ slug, name, to = "" }: { slug: string; name: string; to?: string }) {
+  return (
+    <Link
+      href={`/projects/${slug}${to ? `/${to}` : ""}`}
+      className="text-foreground underline-offset-4 hover:underline"
+    >
+      {name}
+    </Link>
+  );
+}

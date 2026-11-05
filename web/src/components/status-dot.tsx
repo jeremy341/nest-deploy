@@ -31,7 +31,8 @@ function Mark({ dot, pending }: { dot: string; pending?: string }) {
     );
   }
   return (
-    <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", dot)} />
+    // data-mark: the dashboard draws this as a lit square (components/dashboard.css).
+    <span data-mark="" aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", dot)} />
   );
 }
 

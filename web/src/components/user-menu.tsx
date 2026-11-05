@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { BookOpenIcon, GearSixIcon, PlusIcon, SignOutIcon } from "@phosphor-icons/react";
-import { initials, useAccount } from "@/components/account-context";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAccount } from "@/components/account-context";
+import { PixelAvatar } from "@/components/ui/pixel-avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,11 +29,7 @@ export function UserMenu({ className }: { className?: string }) {
           className
         )}
       >
-        <Avatar size="sm">
-          <AvatarFallback className="text-[10px] font-medium uppercase">
-            {initials(user.name)}
-          </AvatarFallback>
-        </Avatar>
+        <PixelAvatar seed={user.name} size={20} />
         <span className="min-w-0 flex-1 truncate">{user.name}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-60" align="start" side="top">

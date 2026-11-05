@@ -192,7 +192,7 @@ function Palette({
         >
           {results.length === 0 ? (
             <li className="px-3 py-8 text-center text-muted-foreground">
-              Nothing matches “{query}”.
+              No page or project called “{query}”.
             </li>
           ) : (
             results.map((t, i) => {

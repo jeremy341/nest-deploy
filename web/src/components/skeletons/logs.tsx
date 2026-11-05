@@ -19,6 +19,7 @@ export function LogsSkeleton() {
           <Skeleton className="h-4 w-36" />
           <Skeleton className="ml-auto h-8 w-24 max-sm:h-10" />
         </div>
+        <div className="h-[18px]" aria-hidden="true" />
         <div className="log-surface min-h-[320px] overflow-hidden rounded-lg py-3 shadow-border-small">
           {Array.from({ length: 14 }, (_, i) => (
             <div key={i} className="flex h-5 items-center px-4">

@@ -3,6 +3,7 @@ import { AccountView } from "@/components/account-view";
 import { ContainerPermissionsSection } from "@/components/container-permissions";
 import { Card } from "@/components/settings-ui";
 import { PageHeader } from "@/components/page-header";
+import { PixelAvatar } from "@/components/ui/pixel-avatar";
 import { timeAgo } from "@/lib/status";
 import { browserLabel, listInstallations, listSessions } from "@/server/account";
 import { requireUser } from "@/server/auth/current";
@@ -33,7 +34,11 @@ export default async function AccountPage() {
 
   return (
     <div className="motion-enter mx-auto max-w-[720px]">
-      <PageHeader title="Account" description="Who you are signed in as, and where." />
+      <PageHeader
+        leading={<PixelAvatar seed={user.name} size={40} />}
+        title="Account"
+        description="Who you are signed in as, and where."
+      />
 
       <div className="space-y-6">
         <Card

@@ -35,11 +35,14 @@ export function SettingsNav() {
                 className={cn(
                   "flex h-8 items-center rounded-md px-3 text-sm transition-colors duration-(--dur-fast) focus-visible:outline-offset-[-2px]",
                   active
-                    ? "bg-[var(--ds-gray-200)] font-medium text-foreground"
+                    ? "bg-[var(--ds-gray-alpha-100)] font-medium text-foreground"
                     : "text-muted-foreground hover:bg-[var(--ds-gray-alpha-100)] hover:text-foreground"
                 )}
               >
                 {s.label}
+                {active ? (
+                  <span aria-hidden="true" className="ml-auto size-1.5 shrink-0 rounded-[1px] bg-foreground" />
+                ) : null}
               </a>
             </li>
           );

@@ -52,7 +52,7 @@ function NoteAndButton({ buttonWidth = "w-32" }: { buttonWidth?: string }) {
 export function SettingsSkeleton() {
   return (
     <LoadingRegion label="Loading settings…" className="w-full max-w-[936px]">
-      <SkeletonPageHeader />
+      <SkeletonPageHeader leading description />
       <div className="grid gap-10 lg:grid-cols-[176px_minmax(0,720px)]">
         <div className="hidden space-y-0.5 self-start lg:block">
           {Array.from({ length: 6 }, (_, i) => (

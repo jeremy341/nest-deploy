@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { HardDrivesIcon } from "@phosphor-icons/react/dist/ssr";
 import { PageHeader } from "@/components/page-header";
+import { FactLine } from "@/components/pixel-kit";
 import { ResourceChart } from "@/components/resource-chart";
 import { ResourcesSkeleton } from "@/components/skeletons/resources";
 import { DocsLink } from "@/components/settings-ui";
@@ -63,6 +64,13 @@ async function ResourcesContent({ searchParams }: Props) {
   ]);
   const projects = allProjects.filter((p) => p.serverId === server.id);
   const u = server.usage;
+  const meters: { label: string; pct: number }[] = [];
+  if (u && u.cpuLoad !== null && u.cpus) meters.push({ label: "CPU", pct: (u.cpuLoad / u.cpus) * 100 });
+  if (u && u.memUsedMb !== null && u.memTotalMb)
+    meters.push({ label: "Memory", pct: (u.memUsedMb / u.memTotalMb) * 100 });
+  if (u && u.diskUsedMb !== null && u.diskTotalMb)
+    meters.push({ label: "Disk", pct: (u.diskUsedMb / u.diskTotalMb) * 100 });
+  const busiest = [...meters].sort((a, b) => b.pct - a.pct)[0];
   const href = (r: string, s = server.id) => `/resources?range=${r}${servers.length > 1 ? `&server=${s}` : ""}`;
 
   return (
@@ -70,7 +78,20 @@ async function ResourcesContent({ searchParams }: Props) {
       <PageHeader
         className="max-sm:gap-y-0"
         title="Resources"
-        description={`CPU, memory and disk of ${server.nestUsername}.hackclub.app, now and over time.`}
+        description={
+          busiest ? (
+            <>
+              <FactLine>
+                {busiest.label} is the busiest, at {Math.round(busiest.pct)}%.
+              </FactLine>
+              <span className="mt-0.5 block">
+                {server.nestUsername}.hackclub.app, now and over the last {range.label}.
+              </span>
+            </>
+          ) : (
+            `CPU, memory and disk of ${server.nestUsername}.hackclub.app, now and over time.`
+          )
+        }
         actions={<DocsLink href="/docs/monitoring" topic="monitoring" className="max-sm:hidden" />}
       />
 

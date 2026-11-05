@@ -43,11 +43,20 @@ export function formatUptime(seconds: number): string {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
-function Item({ label, children }: { label: string; children: React.ReactNode }) {
+function Item({
+  label,
+  children,
+  lead = false,
+}: {
+  label: string;
+  children: React.ReactNode;
+  /** The first fact: set larger than the rest. */
+  lead?: boolean;
+}) {
   return (
     <div className="min-w-0">
       <dt className="mb-1 text-label text-muted-foreground">{label}</dt>
-      <dd className="font-medium tracking-[-0.02em]">{children}</dd>
+      <dd className={cn("font-medium tracking-[-0.02em]", lead && "text-body-lg")}>{children}</dd>
     </div>
   );
 }
@@ -156,7 +165,7 @@ export function ServiceCard({ projectId }: { projectId: string }) {
 
       {status ? (
         <dl className="grid gap-x-6 gap-y-5 p-4 sm:grid-cols-2 lg:grid-cols-5">
-          <Item label="Status">
+          <Item label="Status" lead>
             <Swap value={status.state}>
               <StatusIndicator
                 tone={TONE[status.state]}

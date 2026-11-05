@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
-import { cn } from "@/lib/utils";
+import { PixelMeter } from "@/components/pixel-kit";
 import type { ServerView } from "@/server/queries";
 
 type Row = { label: string; used: number; total: number; display: string };
@@ -35,8 +35,8 @@ function rows(usage: NonNullable<ServerView["usage"]>): Row[] {
 }
 
 /**
- * Container usage from the last time we talked to the server: three meters in
- * one strip. The history lives on the Resources page.
+ * Container usage from the last time we talked to the server: three meters,
+ * each led by its percentage. The history lives on the Resources page.
  */
 export function UsageCard({ server }: { server: ServerView | undefined }) {
   const list = server?.usage ? rows(server.usage) : [];
@@ -68,35 +68,32 @@ export function UsageCard({ server }: { server: ServerView | undefined }) {
       {list.length === 0 ? (
         <p className="px-4 py-5 text-muted-foreground">
           {server
-            ? "Run Test connection on the Connect page to read usage."
-            : "Connect a server to see its usage."}
+            ? "No reading yet. Press Test connection on the Connect page."
+            : "Connect a server to see its CPU, memory and disk here."}
         </p>
       ) : (
-        <ul className="grid divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <ul className="hairline-y">
           {list.map((item) => {
             const ratio = item.total > 0 ? item.used / item.total : 0;
-            const hot = ratio >= 0.8;
             return (
               <li key={item.label} className="px-4 py-3">
                 <div className="flex items-baseline justify-between gap-3">
-                  <span>{item.label}</span>
-                  <span className="tabular font-mono text-[12px] text-muted-foreground">
-                    {item.display}
+                  <span className="text-muted-foreground">{item.label}</span>
+                  <span className="tabular text-title-2">
+                    {Math.round(Math.min(ratio, 1) * 100)}
+                    <span className="text-label font-normal text-muted-foreground">%</span>
                   </span>
                 </div>
-                <div
-                  role="meter"
-                  aria-label={`${item.label} usage`}
-                  aria-valuemin={0}
-                  aria-valuemax={item.total}
-                  aria-valuenow={item.used}
-                  className="mt-2 h-1 overflow-hidden rounded-full bg-muted"
-                >
-                  <div
-                    className={cn("h-full rounded-full", hot ? "bg-warning" : "bg-foreground")}
-                    style={{ width: `${Math.round(Math.min(ratio, 1) * 100)}%` }}
-                  />
-                </div>
+                <PixelMeter
+                  className="mt-2"
+                  ratio={ratio}
+                  label={`${item.label} usage`}
+                  now={item.used}
+                  max={item.total}
+                />
+                <p className="tabular mt-1.5 font-mono text-[12px] text-muted-foreground">
+                  {item.display}
+                </p>
               </li>
             );
           })}

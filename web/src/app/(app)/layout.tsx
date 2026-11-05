@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import "@/components/dashboard.css";
 import { AccountLoader } from "@/components/account-loader";
 import { FindProvider } from "@/components/find-palette";
 import { MobileDock } from "@/components/mobile-dock";

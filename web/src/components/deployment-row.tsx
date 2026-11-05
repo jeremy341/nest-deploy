@@ -107,7 +107,11 @@ export function DeploymentRow({
             </Link>
           )}
         </p>
-        <StatusDot state={deployment.state} className="shrink-0" />
+        {/* A finished, healthy release stays quiet; anything else keeps its full-weight word. */}
+        <StatusDot
+          state={deployment.state}
+          className={cn("shrink-0", deployment.state === "ready" && "font-normal text-muted-foreground")}
+        />
       </div>
 
       <div className="flex min-w-0 items-center justify-between gap-3 md:contents">
@@ -136,7 +140,7 @@ export function DeploymentRow({
           </p>
         </div>
         <p className="flex shrink-0 items-center justify-end gap-2 text-muted-foreground">
-          <span className="whitespace-nowrap">{deployment.age}</span>
+          <span className="tabular whitespace-nowrap">{deployment.age}</span>
           <Avatar size="sm" className="max-sm:hidden">
             <AvatarFallback className="text-[10px] uppercase">
               {(deployment.author ?? "?").slice(0, 2)}
