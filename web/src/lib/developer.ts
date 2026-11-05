@@ -40,7 +40,39 @@ export function tokenStatus(t: Dated, now = Date.now()): TokenStatus {
 /** Only an active token can be revoked from the list. */
 export const canRevoke = (t: Dated, now = Date.now()) => tokenStatus(t, now) === "active";
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** Only an active token can be edited. A revoked one is final; an expired one is left alone. */
+export const canEdit = canRevoke;
+
+/** What the editor's expiry select holds: leave it as is, or a number of days from now. */
+export type ExpiryChoice = "keep" | (typeof EXPIRY_OPTIONS)[number]["days"];
+
+export type TokenEdit = { name: string; scopes: readonly string[]; expiry: ExpiryChoice };
+export type TokenPatch = { name?: string; scopes?: string[]; expiresInDays?: number };
+
+/**
+ * Only the fields that differ from the token, so an untouched editor sends
+ * nothing and an edit never resets an expiry by accident. Scope order is not a
+ * change.
+ */
+export function buildTokenPatch(token: { name: string; scopes: readonly string[] }, edit: TokenEdit): TokenPatch {
+  const patch: TokenPatch = {};
+  const name = edit.name.trim();
+  if (name !== token.name) patch.name = name;
+  const same = edit.scopes.length === token.scopes.length && edit.scopes.every((s) => token.scopes.includes(s));
+  if (!same) patch.scopes = [...edit.scopes];
+  if (edit.expiry !== "keep") patch.expiresInDays = edit.expiry;
+  return patch;
+}
+
+/** True when the edit removes the permission that starts builds. */
+export function dropsDeployAccess(before: readonly string[], after: readonly string[]): boolean {
+  return before.includes(DEPLOY_SCOPE) && !after.includes(DEPLOY_SCOPE);
+}
+
+export const DEPLOY_DROP_NOTE =
+  "Deploys will stop working for anything that uses this token, including redeploys, cancels and rollbacks.";
+
+const MONTHS =["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** "5 Nov 2026", in UTC so the same instant reads the same everywhere. */
 export function formatDate(iso: string): string {

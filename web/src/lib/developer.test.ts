@@ -4,8 +4,12 @@ import {
   DEFAULT_EXPIRY_DAYS,
   EXPIRY_OPTIONS,
   TOKEN_CANNOT,
+  DEPLOY_DROP_NOTE,
   activeCount,
+  buildTokenPatch,
+  canEdit,
   canRevoke,
+  dropsDeployAccess,
   curlExample,
   expiryLabel,
   formatDate,
@@ -42,6 +46,35 @@ describe("tokenStatus", () => {
     expect(canRevoke(tok(10), NOW)).toBe(true);
     expect(canRevoke(tok(-1), NOW)).toBe(false);
     expect(canRevoke(tok(10, true), NOW)).toBe(false);
+  });
+});
+
+describe("editing", () => {
+  it("only an active token can be edited", () => {
+    expect(canEdit(tok(10), NOW)).toBe(true);
+    expect(canEdit(tok(-1), NOW)).toBe(false);
+    expect(canEdit(tok(10, true), NOW)).toBe(false);
+  });
+
+  const token = { name: "CI bot", scopes: ["projects:read", "deployments:write"] };
+
+  it("sends nothing when nothing changed, and ignores scope order and name padding", () => {
+    expect(buildTokenPatch(token, { name: " CI bot ", scopes: ["deployments:write", "projects:read"], expiry: "keep" })).toEqual({});
+  });
+
+  it("sends only the fields that changed", () => {
+    expect(buildTokenPatch(token, { name: "Renamed", scopes: token.scopes, expiry: "keep" })).toEqual({ name: "Renamed" });
+    expect(buildTokenPatch(token, { name: "CI bot", scopes: ["projects:read"], expiry: "keep" })).toEqual({
+      scopes: ["projects:read"],
+    });
+    expect(buildTokenPatch(token, { name: "CI bot", scopes: token.scopes, expiry: 365 })).toEqual({ expiresInDays: 365 });
+  });
+
+  it("warns only when the deploy permission is removed", () => {
+    expect(dropsDeployAccess(token.scopes, ["projects:read"])).toBe(true);
+    expect(dropsDeployAccess(token.scopes, token.scopes)).toBe(false);
+    expect(dropsDeployAccess(["projects:read"], ["projects:read", "deployments:write"])).toBe(false);
+    expect(dropsDeployAccess(["projects:read"], ["projects:read"])).toBe(false);
   });
 });
 
@@ -127,7 +160,7 @@ describe("copy", () => {
   });
 
   it("uses no em or en dashes in any visible copy", () => {
-    const all = [...TOKEN_CANNOT, limitNote(1), limitNote(ACTIVE_TOKEN_LIMIT), ...EXPIRY_OPTIONS.map((o) => o.label)];
+    const all = [...TOKEN_CANNOT, DEPLOY_DROP_NOTE, limitNote(1), limitNote(ACTIVE_TOKEN_LIMIT), ...EXPIRY_OPTIONS.map((o) => o.label)];
     for (const line of all) expect(line).not.toMatch(/[–—]/);
   });
 });

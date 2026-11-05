@@ -45,6 +45,22 @@ export const createTokenInput = z.object({
   expiresInDays: z.union([z.literal(7), z.literal(30), z.literal(90), z.literal(365)]).default(90),
 });
 
+/**
+ * Edit a token. Every field is optional but at least one must be sent, and
+ * unknown keys are refused so a typo cannot silently do nothing. The secret,
+ * its hash and the prefix can never be edited.
+ */
+export const updateTokenInput = z
+  .object({
+    name: createTokenInput.shape.name,
+    scopes: createTokenInput.shape.scopes,
+    /** Days from now, not from creation, so it can extend or shorten the life. */
+    expiresInDays: z.union([z.literal(7), z.literal(30), z.literal(90), z.literal(365)]),
+  })
+  .partial()
+  .strict()
+  .refine((v) => Object.values(v).some((x) => x !== undefined), { message: "Send at least one field to change." });
+
 export type TokenRow = typeof schema.apiTokens.$inferSelect;
 
 export type TokenSummary = {
@@ -134,6 +150,54 @@ export async function revokeApiToken(userId: string, tokenId: string, now = new 
     .returning({ id: schema.apiTokens.id });
   if (gone.length === 0) throw notFound("Token not found");
   await audit(userId, "token.revoke", tokenId);
+}
+
+/**
+ * Rename a token, change its scopes or move its expiry. A revoked token is
+ * final (409); someone else's or an unknown token is a 404. The change is live
+ * on the next request, because `principalFor` reads the row every time.
+ */
+export async function updateApiToken(userId: string, tokenId: string, raw: unknown, now = new Date()) {
+  const input = updateTokenInput.parse(raw);
+  const db = await getDb();
+
+  const owned = and(eq(schema.apiTokens.id, tokenId), eq(schema.apiTokens.userId, userId));
+  const current = await db.select().from(schema.apiTokens).where(owned).get();
+  if (!current) throw notFound("Token not found");
+  if (current.revokedAt) throw new HttpError(409, "This token is revoked and cannot be edited.", "revoked");
+
+  const patch: Partial<Pick<TokenRow, "name" | "scopes" | "expiresAt">> = {};
+  const meta: Record<string, string> = {};
+  const changed: string[] = [];
+  if (input.name !== undefined && input.name !== current.name) {
+    patch.name = input.name;
+    meta.name = input.name;
+    changed.push("name");
+  }
+  if (input.scopes !== undefined) {
+    const next = [...new Set(input.scopes)];
+    if (JSON.stringify(next) !== JSON.stringify(parseScopes(current.scopes))) {
+      patch.scopes = JSON.stringify(next);
+      meta.scopes = next.join(", ");
+      changed.push("scopes");
+    }
+  }
+  if (input.expiresInDays !== undefined) {
+    patch.expiresAt = new Date(now.getTime() + input.expiresInDays * DAY);
+    meta.expiresInDays = String(input.expiresInDays);
+    changed.push("expiry");
+  }
+  if (changed.length === 0) return summarize(current, now.getTime());
+
+  // Guard on "not revoked" again so a revoke that lands mid-edit wins.
+  const rows = await db
+    .update(schema.apiTokens)
+    .set(patch)
+    .where(and(owned, isNull(schema.apiTokens.revokedAt)))
+    .returning();
+  if (rows.length === 0) throw new HttpError(409, "This token is revoked and cannot be edited.", "revoked");
+  await audit(userId, "token.update", tokenId, { fields: changed.join(", "), ...meta });
+  return summarize(rows[0], now.getTime());
 }
 
 export type Principal = { userId: string; tokenId: string; scopes: Scope[] };

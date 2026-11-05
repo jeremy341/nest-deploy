@@ -18,19 +18,24 @@ import { toast } from "@/components/ui/toast";
 import {
   ACTIVE_TOKEN_LIMIT,
   DEFAULT_EXPIRY_DAYS,
+  DEPLOY_DROP_NOTE,
   DEPLOY_SCOPE,
   EXPIRY_OPTIONS,
   NAME_MAX_LENGTH,
   SECRET_NOTE,
   STATUS_LABEL,
   activeCount,
-  canRevoke,
+  buildTokenPatch,
+  canEdit,
+  dropsDeployAccess,
   errorText,
   expiryLabel,
   formatDate,
   lastUsedLabel,
   limitNote,
   tokenStatus,
+  type ExpiryChoice,
+  type TokenPatch,
 } from "@/lib/developer";
 import { cn } from "@/lib/utils";
 import type { TokenSummary } from "@/server/api-tokens";
@@ -107,6 +112,16 @@ export function DeveloperTokens({ scopes }: { scopes: ScopeOption[] }) {
     focusSoon("list");
   }
 
+  /** Throws the server's message so the editor can show it inline. */
+  async function save(token: TokenSummary, patch: TokenPatch) {
+    const res = await api<{ token: TokenSummary }>(`/api/tokens/${encodeURIComponent(token.id)}`, {
+      method: "PATCH",
+      body: patch,
+    });
+    setTokens((cur) => (cur ?? []).map((t) => (t.id === token.id ? res.token : t)));
+    toast.success("Token updated", res.token.name);
+  }
+
   const active = tokens ? activeCount(tokens, now) : 0;
   const atLimit = active >= ACTIVE_TOKEN_LIMIT;
 
@@ -170,7 +185,7 @@ export function DeveloperTokens({ scopes }: { scopes: ScopeOption[] }) {
             ) : (
               <ul className="hairline-y overflow-hidden rounded-md shadow-border-base">
                 {tokens.map((t) => (
-                  <TokenRow key={t.id} token={t} now={now} onRevoke={() => revoke(t)} />
+                  <TokenRow key={t.id} token={t} now={now} scopes={scopes} onRevoke={() => revoke(t)} onSave={save} />
                 ))}
               </ul>
             )}
@@ -349,41 +364,7 @@ function CreateForm({
 
       <fieldset className="min-w-0" aria-describedby={scopeError ? scopeErrId : undefined}>
         <legend className="mb-1.5 text-label text-muted-foreground">Permissions</legend>
-        <ul className="hairline-y overflow-hidden rounded-md shadow-border-base">
-          {scopes.map((s, i) => {
-            const deploy = s.id === DEPLOY_SCOPE;
-            return (
-              <li key={s.id}>
-                <label
-                  className={cn(
-                    "flex min-h-11 cursor-pointer items-start gap-3 px-3 py-2.5 max-sm:min-h-12",
-                    deploy && "bg-[var(--tone-warning-bg)]"
-                  )}
-                >
-                  <input
-                    ref={i === 0 ? firstScopeRef : undefined}
-                    type="checkbox"
-                    className="mt-1 shrink-0"
-                    checked={picked.has(s.id)}
-                    onChange={(e) => toggle(s.id, e.target.checked)}
-                  />
-                  <span className="min-w-0">
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span>{s.label}</span>
-                      {deploy ? (
-                        <span className="inline-flex items-center gap-1 rounded-sm bg-background px-1.5 py-0.5 text-caption font-medium shadow-[0_0_0_1px_var(--tone-warning-ring)]">
-                          <WarningIcon aria-hidden="true" className="size-3 text-[var(--tone-warning-icon)]" />
-                          Can start builds
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="block font-mono text-caption text-muted-foreground">{s.id}</span>
-                  </span>
-                </label>
-              </li>
-            );
-          })}
-        </ul>
+        <ScopeChecklist scopes={scopes} picked={picked} onToggle={toggle} firstRef={firstScopeRef} />
         {scopeError ? (
           <p id={scopeErrId} role="alert" className="mt-1.5 text-label text-destructive">
             {scopeError}
@@ -435,17 +416,83 @@ function CreateForm({
   );
 }
 
+/** The permission checkboxes, shared by the create form and the token editor. */
+function ScopeChecklist({
+  scopes,
+  picked,
+  onToggle,
+  firstRef,
+}: {
+  scopes: ScopeOption[];
+  picked: Set<string>;
+  onToggle: (id: string, on: boolean) => void;
+  firstRef?: React.Ref<HTMLInputElement>;
+}) {
+  return (
+    <ul className="hairline-y overflow-hidden rounded-md shadow-border-base">
+      {scopes.map((s, i) => {
+        const deploy = s.id === DEPLOY_SCOPE;
+        return (
+          <li key={s.id}>
+            <label
+              className={cn(
+                "flex min-h-11 cursor-pointer items-start gap-3 px-3 py-2.5 max-sm:min-h-12",
+                deploy && "bg-[var(--tone-warning-bg)]"
+              )}
+            >
+              <input
+                ref={i === 0 ? firstRef : undefined}
+                type="checkbox"
+                className="mt-1 shrink-0"
+                checked={picked.has(s.id)}
+                onChange={(e) => onToggle(s.id, e.target.checked)}
+              />
+              <span className="min-w-0">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>{s.label}</span>
+                  {deploy ? (
+                    <span className="inline-flex items-center gap-1 rounded-sm bg-background px-1.5 py-0.5 text-caption font-medium shadow-[0_0_0_1px_var(--tone-warning-ring)]">
+                      <WarningIcon aria-hidden="true" className="size-3 text-[var(--tone-warning-icon)]" />
+                      Can start builds
+                    </span>
+                  ) : null}
+                </span>
+                <span className="block font-mono text-caption text-muted-foreground">{s.id}</span>
+              </span>
+            </label>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function TokenRow({
   token,
   now,
+  scopes,
   onRevoke,
+  onSave,
 }: {
   token: TokenSummary;
   now: number;
+  scopes: ScopeOption[];
   onRevoke: () => Promise<void>;
+  onSave: (token: TokenSummary, patch: TokenPatch) => Promise<void>;
 }) {
   const status = tokenStatus(token, now);
   const dim = status !== "active";
+  const [editing, setEditing] = useState(false);
+  const editRef = useRef<HTMLButtonElement>(null);
+  const editorId = useId();
+  const editable = canEdit(token, now);
+
+  function closeEditor() {
+    setEditing(false);
+    // Back to the control that opened it, once it is on screen again.
+    requestAnimationFrame(() => editRef.current?.focus());
+  }
+
   return (
     <li className="px-3 py-3">
       <div className="flex items-start justify-between gap-3">
@@ -459,47 +506,240 @@ function TokenRow({
             {token.prefix}
           </p>
         </div>
-        {canRevoke(token, now) ? (
-          <ConfirmDialog
-            trigger={
-              <Button type="button" variant="destructive" size="sm" aria-label={`Revoke ${token.name}`}>
-                Revoke
-              </Button>
-            }
-            tone="destructive"
-            title={`Revoke "${token.name}"?`}
-            description="Anything using this token stops working right away. This cannot be undone."
-            confirmLabel="Revoke token"
-            pendingLabel="Revoking…"
-            onConfirm={onRevoke}
-          />
+        {editable ? (
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              ref={editRef}
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label={`Edit ${token.name}`}
+              aria-expanded={editing}
+              aria-controls={editing ? editorId : undefined}
+              onClick={() => (editing ? closeEditor() : setEditing(true))}
+            >
+              Edit
+            </Button>
+            <ConfirmDialog
+              trigger={
+                <Button type="button" variant="destructive" size="sm" aria-label={`Revoke ${token.name}`}>
+                  Revoke
+                </Button>
+              }
+              tone="destructive"
+              title={`Revoke "${token.name}"?`}
+              description="Anything using this token stops working right away. This cannot be undone."
+              confirmLabel="Revoke token"
+              pendingLabel="Revoking…"
+              onConfirm={onRevoke}
+            />
+          </div>
         ) : null}
       </div>
 
-      <ul aria-label="Permissions" className="mt-2 flex flex-wrap gap-1.5">
-        {token.scopes.map((s) => (
-          <li
-            key={s}
-            className={cn(
-              "rounded-sm px-1.5 py-0.5 font-mono text-caption",
-              s === DEPLOY_SCOPE
-                ? "bg-[var(--tone-warning-bg)] shadow-[0_0_0_1px_var(--tone-warning-ring)]"
-                : "bg-muted text-muted-foreground"
-            )}
-          >
-            {s}
-          </li>
-        ))}
-      </ul>
+      {editing ? (
+        <TokenEditor
+          id={editorId}
+          token={token}
+          scopes={scopes}
+          onSave={async (patch) => {
+            await onSave(token, patch);
+            closeEditor();
+          }}
+          onCancel={closeEditor}
+        />
+      ) : (
+        <>
+          <ul aria-label="Permissions" className="mt-2 flex flex-wrap gap-1.5">
+            {token.scopes.map((s) => (
+              <li
+                key={s}
+                className={cn(
+                  "rounded-sm px-1.5 py-0.5 font-mono text-caption",
+                  s === DEPLOY_SCOPE
+                    ? "bg-[var(--tone-warning-bg)] shadow-[0_0_0_1px_var(--tone-warning-ring)]"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                {s}
+              </li>
+            ))}
+          </ul>
 
-      <dl className="mt-3 grid gap-x-4 gap-y-1.5 text-label sm:grid-cols-3">
-        <Meta label="Created">{formatDate(token.createdAt)}</Meta>
-        <Meta label="Last used">{lastUsedLabel(token.lastUsedAt, now)}</Meta>
-        <Meta label={status === "revoked" ? "Was due" : status === "expired" ? "Expired" : "Expires"}>
-          {expiryLabel(token, now)}
-        </Meta>
-      </dl>
+          <dl className="mt-3 grid gap-x-4 gap-y-1.5 text-label sm:grid-cols-3">
+            <Meta label="Created">{formatDate(token.createdAt)}</Meta>
+            <Meta label="Last used">{lastUsedLabel(token.lastUsedAt, now)}</Meta>
+            <Meta label={status === "revoked" ? "Was due" : status === "expired" ? "Expired" : "Expires"}>
+              {expiryLabel(token, now)}
+            </Meta>
+          </dl>
+        </>
+      )}
     </li>
+  );
+}
+
+/**
+ * Inline editor for one active token. It sends only what changed; the secret
+ * is never involved. Changes apply to the very next request that uses the token.
+ */
+function TokenEditor({
+  id,
+  token,
+  scopes,
+  onSave,
+  onCancel,
+}: {
+  id: string;
+  token: TokenSummary;
+  scopes: ScopeOption[];
+  onSave: (patch: TokenPatch) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const nameId = `${id}-name`;
+  const nameErrId = `${id}-name-error`;
+  const scopeErrId = `${id}-scope-error`;
+  const expiryId = `${id}-expiry`;
+  const nameRef = useRef<HTMLInputElement>(null);
+  const firstScopeRef = useRef<HTMLInputElement>(null);
+
+  const [name, setName] = useState(token.name);
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(token.scopes));
+  const [expiry, setExpiry] = useState<ExpiryChoice>("keep");
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [scopeError, setScopeError] = useState<string | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    nameRef.current?.focus();
+  }, []);
+
+  // Keep the order the permissions are listed in.
+  const chosen = scopes.filter((s) => picked.has(s.id)).map((s) => s.id);
+  const dropsDeploy = dropsDeployAccess(token.scopes, chosen);
+
+  function toggle(scopeId: string, on: boolean) {
+    setScopeError(null);
+    setPicked((cur) => {
+      const next = new Set(cur);
+      if (on) next.add(scopeId);
+      else next.delete(scopeId);
+      return next;
+    });
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (pending) return;
+    setServerError(null);
+    const nErr = name.trim() ? null : "Give the token a name.";
+    const sErr = chosen.length === 0 ? "Pick at least one permission." : null;
+    setNameError(nErr);
+    setScopeError(sErr);
+    if (nErr) return nameRef.current?.focus();
+    if (sErr) return firstScopeRef.current?.focus();
+
+    const patch = buildTokenPatch(token, { name, scopes: chosen, expiry });
+    if (Object.keys(patch).length === 0) return onCancel();
+
+    setPending(true);
+    try {
+      await onSave(patch);
+    } catch (err) {
+      setServerError(errorText(err, "Could not save the changes. Try again."));
+      setPending(false);
+    }
+  }
+
+  return (
+    <form
+      id={id}
+      onSubmit={submit}
+      noValidate
+      aria-label={`Edit ${token.name}`}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && !pending) onCancel();
+      }}
+      className="mt-3 space-y-4 rounded-md bg-muted/40 p-4 shadow-border-base"
+    >
+      <div>
+        <Label htmlFor={nameId}>Name</Label>
+        <Input
+          id={nameId}
+          ref={nameRef}
+          value={name}
+          maxLength={NAME_MAX_LENGTH}
+          required
+          aria-required="true"
+          aria-invalid={nameError ? true : undefined}
+          aria-describedby={nameError ? nameErrId : undefined}
+          autoComplete="off"
+          onChange={(e) => {
+            setName(e.target.value);
+            setNameError(null);
+          }}
+          className="sm:max-w-sm"
+        />
+        {nameError ? (
+          <p id={nameErrId} role="alert" className="mt-1 text-label text-destructive">
+            {nameError}
+          </p>
+        ) : null}
+      </div>
+
+      <fieldset className="min-w-0" aria-describedby={scopeError ? scopeErrId : undefined}>
+        <legend className="mb-1.5 text-label text-muted-foreground">Permissions</legend>
+        <ScopeChecklist scopes={scopes} picked={picked} onToggle={toggle} firstRef={firstScopeRef} />
+        {scopeError ? (
+          <p id={scopeErrId} role="alert" className="mt-1.5 text-label text-destructive">
+            {scopeError}
+          </p>
+        ) : null}
+        <div role="status">
+          {dropsDeploy ? (
+            <Alert tone="warning" className="mt-2 p-3 text-label">
+              {DEPLOY_DROP_NOTE}
+            </Alert>
+          ) : null}
+        </div>
+      </fieldset>
+
+      <div>
+        <Label htmlFor={expiryId}>Expires after</Label>
+        <NativeSelect
+          id={expiryId}
+          value={expiry}
+          onChange={(e) => setExpiry(e.target.value === "keep" ? "keep" : (Number(e.target.value) as ExpiryChoice))}
+          className="sm:max-w-64"
+        >
+          <option value="keep">Keep current ({formatDate(token.expiresAt)})</option>
+          {EXPIRY_OPTIONS.map((o) => (
+            <option key={o.days} value={o.days}>
+              {o.label} from now
+            </option>
+          ))}
+        </NativeSelect>
+        <p className="mt-1.5 text-caption text-muted-foreground">
+          A new expiry counts from today, so it can make the token last longer or end sooner.
+        </p>
+      </div>
+
+      {serverError ? (
+        <Alert tone="error" role="alert">
+          {serverError}
+        </Alert>
+      ) : null}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" loading={pending} className="max-sm:w-full">
+          {pending ? "Saving…" : "Save changes"}
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={pending} className="max-sm:w-full">
+          Cancel
+        </Button>
+      </div>
+    </form>
   );
 }
 
