@@ -348,11 +348,12 @@ export async function readFile(session: FileSession, root: string, rawPath: stri
 export async function downloadFile(
   session: FileSession,
   root: string,
-  rawPath: string
+  rawPath: string,
+  limit: number = DOWNLOAD_LIMIT
 ): Promise<{ name: string; bytes: Buffer }> {
   const scope = rules(() => scopeOf(rawPath));
   if (scope.path === "") throw new HttpError(400, "That path is not a file.", "not_a_file");
-  const out = await run(session, SCRIPTS.download, [root, scope.path, String(DOWNLOAD_LIMIT)], {
+  const out = await run(session, SCRIPTS.download, [root, scope.path, String(limit)], {
     timeoutMs: 120_000,
   });
   return { name: baseName(scope.path), bytes: splitSized(out).data };
@@ -466,9 +467,14 @@ export function readProjectFile(userId: string, projectId: string, path: string)
   return guarded(userId, projectId, () => normalizePath(path), (c) => readFile(c.session, c.root, path));
 }
 
-export function downloadProjectFile(userId: string, projectId: string, path: string) {
-  return guarded(userId, projectId, () => normalizePath(path), (c) => downloadFile(c.session, c.root, path));
+export function downloadProjectFile(userId: string, projectId: string, path: string, limit: number = DOWNLOAD_LIMIT) {
+  return guarded(userId, projectId, () => normalizePath(path), (c) => downloadFile(c.session, c.root, path, limit));
 }
+
+/** Who made a change, when it was an API access token and not the browser. Added to the audit entry. */
+export type FileActor = { tokenId?: string | null };
+
+const actorMeta = (by: FileActor): Record<string, string> => (by.tokenId ? { via: "api", token: by.tokenId } : {});
 
 /** Ownership and path rules for a write, without touching the container. */
 export async function checkProjectWrite(userId: string, projectId: string, path: string) {
@@ -481,7 +487,8 @@ export function writeProjectFile(
   projectId: string,
   path: string,
   content: Buffer,
-  overwrite: boolean
+  overwrite: boolean,
+  by: FileActor = {}
 ) {
   return guarded(
     userId,
@@ -489,26 +496,26 @@ export function writeProjectFile(
     () => assertModifiable(path),
     async (c) => {
       const res = await writeFile(c.session, c.root, path, content, overwrite);
-      await audit(userId, "file.write", c.projectId, { path: res.path });
+      await audit(userId, "file.write", c.projectId, { path: res.path, ...actorMeta(by) });
       return res;
     }
   );
 }
 
-export function makeProjectDir(userId: string, projectId: string, path: string) {
+export function makeProjectDir(userId: string, projectId: string, path: string, by: FileActor = {}) {
   return guarded(
     userId,
     projectId,
     () => assertModifiable(path),
     async (c) => {
       const res = await makeDir(c.session, c.root, path);
-      await audit(userId, "file.mkdir", c.projectId, { path: res.path });
+      await audit(userId, "file.mkdir", c.projectId, { path: res.path, ...actorMeta(by) });
       return res;
     }
   );
 }
 
-export function renameProjectPath(userId: string, projectId: string, from: string, to: string) {
+export function renameProjectPath(userId: string, projectId: string, from: string, to: string, by: FileActor = {}) {
   return guarded(
     userId,
     projectId,
@@ -518,20 +525,26 @@ export function renameProjectPath(userId: string, projectId: string, from: strin
     },
     async (c) => {
       const res = await renamePath(c.session, c.root, from, to);
-      await audit(userId, "file.rename", c.projectId, { from: res.from, to: res.to });
+      await audit(userId, "file.rename", c.projectId, { from: res.from, to: res.to, ...actorMeta(by) });
       return res;
     }
   );
 }
 
-export function deleteProjectPath(userId: string, projectId: string, path: string, recursive: boolean) {
+export function deleteProjectPath(
+  userId: string,
+  projectId: string,
+  path: string,
+  recursive: boolean,
+  by: FileActor = {}
+) {
   return guarded(
     userId,
     projectId,
     () => assertModifiable(path),
     async (c) => {
       const res = await deletePath(c.session, c.root, path, recursive);
-      await audit(userId, "file.delete", c.projectId, { path: res.path });
+      await audit(userId, "file.delete", c.projectId, { path: res.path, ...actorMeta(by) });
       return res;
     }
   );

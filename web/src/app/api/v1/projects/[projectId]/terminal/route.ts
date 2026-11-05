@@ -1,0 +1,4 @@
+import { v1Route } from "@/server/api-v1-http";
+
+export const GET = v1Route("terminal_status");
+export const POST = v1Route("terminal_open");

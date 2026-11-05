@@ -137,12 +137,79 @@ describe("token routes", () => {
     expect(await ctx.db.select().from(schema.apiTokens)).toHaveLength(0);
   });
 
-  it("defaults to 90 days and accepts every permission", async () => {
+  it("defaults to 90 days, or to 7 when a container permission is picked, and accepts every permission", async () => {
+    const plain = await createAs(sam, { name: "Reads", scopes: ["projects:read", "env:write"] });
+    expect(plain.res.status).toBe(201);
+    const plainDays = ((await expiresOf(plain.body.token?.id as string)) - Date.now()) / 86_400_000;
+    expect(Math.round(plainDays)).toBe(90);
+
     const { res, body } = await createAs(sam, { name: "All", scopes: [...SCOPES] });
     expect(res.status).toBe(201);
     const days = ((await expiresOf(body.token?.id as string)) - Date.now()) / 86_400_000;
-    expect(Math.round(days)).toBe(90);
+    expect(Math.round(days)).toBe(7);
     expect(body.token?.scopes).toEqual([...SCOPES]);
+  });
+
+  describe("the 7 day cap for the terminal and file changes", () => {
+    const SHORT = ["terminal:use", "files:write"] as const;
+    const patch = (id: string, body: unknown) => editRoute(json(`/api/tokens/${id}`, "PATCH", body), idCtx(id));
+
+    it("refuses a longer expiry when the token is created, and says why", async () => {
+      for (const scope of SHORT) {
+        for (const expiresInDays of [30, 90, 365]) {
+          const { res, body } = await createAs(sam, { name: "Shell", scopes: ["projects:read", scope], expiresInDays });
+          expect(res.status, `${scope} ${expiresInDays}`).toBe(400);
+          expect(body.error?.code).toBe("short_lived");
+          expect(body.error?.message).toMatch(/7 days/);
+        }
+        const ok = await createAs(sam, { name: "Shell", scopes: [scope], expiresInDays: 7 });
+        expect(ok.res.status).toBe(201);
+        const days = ((await expiresOf(ok.body.token?.id as string)) - Date.now()) / 86_400_000;
+        expect(Math.round(days)).toBe(7);
+      }
+    });
+
+    it("does not cap a token with only the other permissions, including files:read", async () => {
+      const { res } = await createAs(sam, { name: "Read", scopes: ["files:read", "env:write", "projects:write"], expiresInDays: 365 });
+      expect(res.status).toBe(201);
+    });
+
+    it("refuses an edit that adds a container permission to a longer-lived token", async () => {
+      const { body: made } = await createAs(sam, { ...valid, expiresInDays: 90 });
+      const id = made.token?.id as string;
+      const before = await expiresOf(id);
+      for (const scope of SHORT) {
+        const res = await patch(id, { scopes: ["projects:read", scope] });
+        expect(res.status, scope).toBe(400);
+        expect((await bodyOf(res)).error?.code).toBe("short_lived");
+      }
+      // Adding the permission is allowed together with a 7 day expiry.
+      const both = await patch(id, { scopes: ["projects:read", "terminal:use"], expiresInDays: 7 });
+      expect(both.status).toBe(200);
+      expect((await expiresOf(id)) - Date.now()).toBeLessThanOrEqual(7 * 86_400_000);
+      expect(await expiresOf(id)).toBeLessThan(before);
+    });
+
+    it("refuses a longer expiry on a token that holds one, but allows renaming and 7 days", async () => {
+      const { body: made } = await createAs(sam, { name: "Shell", scopes: ["terminal:use"], expiresInDays: 7 });
+      const id = made.token?.id as string;
+      for (const expiresInDays of [30, 90, 365]) {
+        const res = await patch(id, { expiresInDays });
+        expect(res.status, String(expiresInDays)).toBe(400);
+        expect((await bodyOf(res)).error?.message).toMatch(/7 days/);
+      }
+      expect((await patch(id, { name: "Renamed" })).status).toBe(200);
+      expect((await patch(id, { expiresInDays: 7 })).status).toBe(200);
+      // Taking the permission away lifts the cap again.
+      expect((await patch(id, { scopes: ["projects:read"], expiresInDays: 365 })).status).toBe(200);
+    });
+
+    it("leaves tokens that never held a container permission alone", async () => {
+      const { body: made } = await createAs(sam, { ...valid, expiresInDays: 90 });
+      const id = made.token?.id as string;
+      expect((await patch(id, { expiresInDays: 365 })).status).toBe(200);
+      expect((await patch(id, { scopes: ["files:read", "env:read"] })).status).toBe(200);
+    });
   });
 
   it("blocks a cross-origin create", async () => {

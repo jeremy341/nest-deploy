@@ -98,6 +98,30 @@ export type TerminalDeps = {
   ) => Promise<void>;
 };
 
+/** Who an API access token is, when it (and not the browser) opened or closed a session. */
+export type TerminalActor = { tokenId?: string | null };
+
+/** Audit meta for an action done through an access token; nothing for the browser. */
+function actorMeta(tokenId: string | null | undefined): Record<string, string> {
+  return tokenId ? { via: "api", token: tokenId } : {};
+}
+
+/** What a poll for new output returns. Offsets count bytes since the session opened. */
+export type TerminalRead = {
+  /** New output as UTF-8. Never ends in the middle of a character. */
+  data: Buffer;
+  /** Pass this as `since` next time. */
+  offset: number;
+  /** The oldest offset still held. If the caller's `since` was older, output was missed. */
+  start: number;
+  /** True when `since` was older than `start`: the buffer only keeps the last 64 KB. */
+  missed: boolean;
+  /** Set once the session has ended (kept for a short while after). */
+  ended: CloseReason | null;
+  /** When the session ends if nothing more happens. Null once it has ended. */
+  expiresAt: number | null;
+};
+
 type Session = {
   id: string;
   userId: string;
@@ -111,12 +135,32 @@ type Session = {
   lastInputAt: number;
   chunks: Buffer[];
   bufferedBytes: number;
+  /** Every byte ever received, so a reader can ask for "everything since offset N". */
+  received: number;
+  /** The API token that opened the session, if one did. Recorded in the audit log. */
+  tokenId: string | null;
+  /** The API token that closed it, if one did. */
+  closedByToken: string | null;
   subscribers: Set<Subscriber>;
   timer: NodeJS.Timeout | null;
   closed: boolean;
 };
 
 const SESSION_ID = /^[A-Za-z0-9_-]{22}$/;
+
+/** Length of the longest prefix of `b` that does not end in the middle of a UTF-8 character. */
+export function completeUtf8(b: Buffer): number {
+  let i = b.length - 1;
+  let back = 0;
+  while (i >= 0 && back < 3 && (b[i] & 0xc0) === 0x80) {
+    i--;
+    back++;
+  }
+  if (i < 0) return b.length;
+  const lead = b[i];
+  const need = lead >= 0xf0 ? 4 : lead >= 0xe0 ? 3 : lead >= 0xc0 ? 2 : 1;
+  return b.length - i >= need ? b.length : i;
+}
 
 /** True for a session id this module could have made. Anything else is a 404 without a lookup. */
 export function isSessionId(value: string): boolean {
@@ -186,7 +230,12 @@ export class TerminalManager {
   }
 
   /** Open a shell for the project's owner. Fails with 404 for anyone else and 409 if one is already open. */
-  async open(userId: string, projectId: string, size: TerminalSize): Promise<SessionInfo> {
+  async open(
+    userId: string,
+    projectId: string,
+    size: TerminalSize,
+    actor: TerminalActor = {}
+  ): Promise<SessionInfo> {
     const checked = checkSize(size);
     // Ownership first: the same 404 whether the project is missing or someone else's.
     const project = await this.deps.getProject(userId, projectId);
@@ -231,6 +280,9 @@ export class TerminalManager {
         lastInputAt: now,
         chunks: [],
         bufferedBytes: 0,
+        received: 0,
+        tokenId: actor.tokenId ?? null,
+        closedByToken: null,
         subscribers: new Set(),
         timer: null,
         closed: false,
@@ -239,7 +291,10 @@ export class TerminalManager {
       this.byProject.set(key, session.id);
 
       // Logged before the shell can report a close, so the log reads open, then close.
-      void this.deps.audit(userId, "terminal.open", project.id, { project: project.id });
+      void this.deps.audit(userId, "terminal.open", project.id, {
+        project: project.id,
+        ...actorMeta(actor.tokenId),
+      });
 
       shell.onData((chunk) => this.receive(session, chunk));
       shell.onClose((reason) =>
@@ -294,8 +349,39 @@ export class TerminalManager {
   }
 
   /** Close the session now. */
-  close(userId: string, projectId: string, sessionId: string): void {
-    void this.end(this.owned(userId, projectId, sessionId), "closed");
+  close(userId: string, projectId: string, sessionId: string, actor: TerminalActor = {}): void {
+    const session = this.owned(userId, projectId, sessionId);
+    session.closedByToken = actor.tokenId ?? null;
+    void this.end(session, "closed");
+  }
+
+  /**
+   * Output since byte offset `since`, for callers that poll instead of
+   * streaming. Not activity (reading must not keep a session alive). The buffer
+   * holds the last 64 KB; a caller that waited too long is told it missed some.
+   */
+  read(userId: string, projectId: string, sessionId: string, since: number): TerminalRead {
+    this.forgetOld();
+    const gone = this.closedMemory.get(sessionId);
+    if (gone && gone.userId === userId && gone.projectId === projectId && !this.sessions.has(sessionId)) {
+      return { data: Buffer.alloc(0), offset: since, start: since, missed: false, ended: gone.reason, expiresAt: null };
+    }
+    const s = this.owned(userId, projectId, sessionId);
+    const end = s.received;
+    const start = end - s.bufferedBytes;
+    const missed = since < start;
+    let from = Math.min(Math.max(since, start), end);
+    let bytes = Buffer.concat(s.chunks).subarray(from - start);
+    if (from === start && start > 0) {
+      // The buffer was cut at an arbitrary byte: skip the tail of a character that began before it.
+      let skip = 0;
+      while (skip < 3 && skip < bytes.length && (bytes[skip] & 0xc0) === 0x80) skip++;
+      bytes = bytes.subarray(skip);
+      from += skip;
+    }
+    const whole = completeUtf8(bytes);
+    bytes = bytes.subarray(0, whole);
+    return { data: bytes, offset: from + whole, start, missed, ended: null, expiresAt: this.deadline(s) };
   }
 
   /**
@@ -383,6 +469,7 @@ export class TerminalManager {
 
   private receive(s: Session, chunk: Buffer) {
     if (s.closed) return;
+    s.received += chunk.length;
     // Keep only the newest bufferBytes. A chunk bigger than the cap is cut to its tail.
     const cap = TERMINAL_LIMITS.bufferBytes;
     const piece = chunk.length > cap ? chunk.subarray(chunk.length - cap) : chunk;
@@ -459,10 +546,14 @@ export class TerminalManager {
     s.chunks = [];
     s.bufferedBytes = 0;
 
+    // A close from the browser carries no token. Anything else (idle, limit, the shell
+    // exiting) belongs to the session, so it keeps the token that opened it.
+    const byToken = reason === "closed" ? s.closedByToken : s.tokenId;
     return this.deps.audit(s.userId, "terminal.close", s.projectId, {
       project: s.projectId,
       reason,
       seconds: Math.round((this.deps.now() - s.openedAt) / 1000),
+      ...actorMeta(byToken),
     });
   }
 

@@ -22,6 +22,42 @@ export const DEFAULT_EXPIRY_DAYS = 90;
 /** The permission that can start builds. The form marks it so nobody ticks it by accident. */
 export const DEPLOY_SCOPE = "deployments:write";
 
+/**
+ * Permissions that act on the container itself. A token that holds one expires
+ * within `SHORT_LIVED_DAYS`. Mirrors SHORT_LIVED_SCOPES in server/api-tokens.ts,
+ * which enforces it (a test keeps the two equal).
+ */
+export const SHORT_LIVED_SCOPES: readonly string[] = ["terminal:use", "files:write"];
+export const SHORT_LIVED_DAYS = 7;
+
+export const holdsShortLived = (scopes: readonly string[]) => scopes.some((s) => SHORT_LIVED_SCOPES.includes(s));
+
+/** Permissions that change something. The checklist marks them. */
+export const isChangeScope = (id: string) => id.endsWith(":write") || id === "terminal:use";
+
+/** The badge on a permission that can change things. */
+export function scopeBadge(id: string): string | null {
+  if (id === DEPLOY_SCOPE) return "Can start builds";
+  if (id === "terminal:use") return "Runs commands";
+  if (id === "files:write") return "Changes files";
+  if (id === "projects:write") return "Can change or delete projects";
+  return isChangeScope(id) ? "Can change things" : null;
+}
+
+/** Extra words under a permission, for the ones that need more than their label. */
+export function scopeNote(id: string): string | null {
+  if (id === "terminal:use") {
+    return "Needs the terminal switched on for the server. You turned it on with a recent Hack Club sign-in, and a token can use it until its 7 days end or you switch it off. The token does not sign in again.";
+  }
+  if (id === "files:write") {
+    return "Needs file changes switched on for the server, with the same recent sign-in rule. Only the shared/ folder can change, never the live release.";
+  }
+  return null;
+}
+
+export const SHORT_LIVED_NOTE =
+  "A token with the terminal or file change permission expires in 7 days at most, so a lost token stops working soon.";
+
 export type TokenStatus = "active" | "expired" | "revoked";
 export const STATUS_LABEL: Record<TokenStatus, string> = {
   active: "Active",
@@ -62,6 +98,31 @@ export function buildTokenPatch(token: { name: string; scopes: readonly string[]
   if (!same) patch.scopes = [...edit.scopes];
   if (edit.expiry !== "keep") patch.expiresInDays = edit.expiry;
   return patch;
+}
+
+/** The expiry choices that are allowed for these permissions: 7 days only when a container permission is picked. */
+export function allowedExpiries(scopes: readonly string[]) {
+  return holdsShortLived(scopes) ? EXPIRY_OPTIONS.filter((o) => o.days <= SHORT_LIVED_DAYS) : EXPIRY_OPTIONS;
+}
+
+/** The expiry a new token will really get: the chosen days, cut to 7 when a container permission is picked. */
+export function clampExpiry(days: number, scopes: readonly string[]): number {
+  return holdsShortLived(scopes) ? Math.min(days, SHORT_LIVED_DAYS) : days;
+}
+
+/**
+ * The expiry an edit will really send. "Keep" is only allowed while the token
+ * already ends within 7 days; otherwise a container permission forces 7 days.
+ */
+export function clampEditExpiry(
+  choice: ExpiryChoice,
+  scopes: readonly string[],
+  token: { expiresAt: string },
+  now = Date.now()
+): ExpiryChoice {
+  if (!holdsShortLived(scopes)) return choice;
+  if (choice === "keep") return new Date(token.expiresAt).getTime() > now + SHORT_LIVED_DAYS * DAY ? 7 : "keep";
+  return choice > SHORT_LIVED_DAYS ? 7 : choice;
 }
 
 /** True when the edit removes the permission that starts builds. */
@@ -124,13 +185,17 @@ export function limitNote(active: number): string {
 
 export const SECRET_NOTE = "Copy it now. It will not be shown again.";
 
-/** What a token cannot do. Matches what the API and the agent endpoint refuse. */
+/** What a token cannot do at all. Matches what the API and the agent endpoint refuse. */
 export const TOKEN_CANNOT = [
-  "Open the terminal.",
-  "Change files on your server.",
   "Remove leftovers.",
   "Change container permissions.",
   "Manage your account, your sessions or other tokens.",
+] as const;
+
+/** What a token can do only under tight limits. */
+export const TOKEN_LIMITED = [
+  "Use the terminal, only if you switched it on for that server, and only for 7 days at most.",
+  "Change files, only in a project's shared/ folder, only if you switched file changes on, and only for 7 days at most.",
 ] as const;
 
 export const TOKEN_PLACEHOLDER = "ndp_...";

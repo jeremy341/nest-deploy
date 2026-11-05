@@ -4,6 +4,7 @@ import {
   DEFAULT_EXPIRY_DAYS,
   EXPIRY_OPTIONS,
   TOKEN_CANNOT,
+  TOKEN_LIMITED,
   DEPLOY_DROP_NOTE,
   activeCount,
   buildTokenPatch,
@@ -19,7 +20,17 @@ import {
   mcpUrl,
   openApiUrl,
   tokenStatus,
+  SHORT_LIVED_NOTE,
+  SHORT_LIVED_SCOPES,
+  allowedExpiries,
+  clampEditExpiry,
+  clampExpiry,
+  holdsShortLived,
+  isChangeScope,
+  scopeBadge,
+  scopeNote,
 } from "@/lib/developer";
+import { SCOPES, SCOPE_LABEL, SHORT_LIVED_SCOPES as SERVER_SHORT_LIVED } from "@/server/api-tokens";
 
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 10, 5, 12, 0, 0);
@@ -156,11 +167,70 @@ describe("snippets", () => {
 
 describe("copy", () => {
   it("lists what a token cannot do", () => {
-    expect(TOKEN_CANNOT).toHaveLength(5);
+    expect(TOKEN_CANNOT).toHaveLength(3);
+    expect(TOKEN_CANNOT.join(" ")).not.toMatch(/terminal|files/i);
+    expect(TOKEN_LIMITED.join(" ")).toMatch(/7 days/);
   });
 
   it("uses no em or en dashes in any visible copy", () => {
-    const all = [...TOKEN_CANNOT, DEPLOY_DROP_NOTE, limitNote(1), limitNote(ACTIVE_TOKEN_LIMIT), ...EXPIRY_OPTIONS.map((o) => o.label)];
+    const all = [...TOKEN_CANNOT, ...TOKEN_LIMITED, SHORT_LIVED_NOTE, DEPLOY_DROP_NOTE, limitNote(1), limitNote(ACTIVE_TOKEN_LIMIT), ...EXPIRY_OPTIONS.map((o) => o.label)];
     for (const line of all) expect(line).not.toMatch(/[–—]/);
+  });
+});
+
+describe("the 7 day rule in the form", () => {
+  it("matches the server's list of container permissions", () => {
+    expect([...SHORT_LIVED_SCOPES].sort()).toEqual([...SERVER_SHORT_LIVED].sort());
+  });
+
+  it("offers only 7 days when a terminal or file change permission is picked, and everything otherwise", () => {
+    expect(allowedExpiries(["projects:read"]).map((o) => o.days)).toEqual([7, 30, 90, 365]);
+    expect(allowedExpiries(["files:read", "env:write"]).map((o) => o.days)).toEqual([7, 30, 90, 365]);
+    for (const scope of ["terminal:use", "files:write"]) {
+      expect(allowedExpiries(["projects:read", scope]).map((o) => o.days)).toEqual([7]);
+      expect(holdsShortLived([scope])).toBe(true);
+    }
+    expect(holdsShortLived(["files:read"])).toBe(false);
+  });
+
+  it("cuts a chosen expiry to 7 days only when needed", () => {
+    expect(clampExpiry(90, ["projects:read"])).toBe(90);
+    expect(clampExpiry(90, ["terminal:use"])).toBe(7);
+    expect(clampExpiry(7, ["files:write"])).toBe(7);
+  });
+
+  it("does not let an edit keep a long expiry on a token that now holds one", () => {
+    const long = { expiresAt: at(60) };
+    const soon = { expiresAt: at(3) };
+    expect(clampEditExpiry("keep", ["terminal:use"], long, NOW)).toBe(7);
+    expect(clampEditExpiry("keep", ["terminal:use"], soon, NOW)).toBe("keep");
+    expect(clampEditExpiry(90, ["files:write"], soon, NOW)).toBe(7);
+    expect(clampEditExpiry(7, ["files:write"], soon, NOW)).toBe(7);
+    expect(clampEditExpiry("keep", ["projects:read"], long, NOW)).toBe("keep");
+    expect(clampEditExpiry(365, ["projects:read"], long, NOW)).toBe(365);
+  });
+
+  it("marks the permissions that change things, and explains the two container ones", () => {
+    for (const id of ["deployments:write", "terminal:use", "files:write", "env:write", "projects:write", "domains:write"]) {
+      expect(isChangeScope(id), id).toBe(true);
+      expect(scopeBadge(id), id).toBeTruthy();
+    }
+    for (const id of ["projects:read", "files:read", "env:read", "activity:read"]) {
+      expect(isChangeScope(id), id).toBe(false);
+      expect(scopeBadge(id), id).toBeNull();
+    }
+    expect(scopeNote("terminal:use")).toMatch(/7 days/);
+    expect(scopeNote("terminal:use")).toMatch(/recent Hack Club sign-in/);
+    expect(scopeNote("files:write")).toContain("shared/");
+    expect(scopeNote("projects:read")).toBeNull();
+  });
+
+  it("gives every permission a label and a plain-language note without dashes", () => {
+    for (const id of SCOPES) {
+      expect(SCOPE_LABEL[id], id).toBeTruthy();
+      expect(SCOPE_LABEL[id], id).not.toMatch(/[–—]/);
+      const note = scopeNote(id);
+      if (note) expect(note).not.toMatch(/[–—]/);
+    }
   });
 });

@@ -123,9 +123,25 @@ const everyEndpoint = (secret: string | null, auth?: string): [string, () => Pro
   ];
 };
 
+// The first ten endpoints are exercised here. Every later one has its own tests in
+// api-v1-expansion.test.ts and api-v1-shell.test.ts, which check that they cover the rest.
+const FIRST_ENDPOINTS = [
+  "list_projects",
+  "get_project",
+  "list_deployments",
+  "deploy_branch",
+  "redeploy",
+  "cancel_deployment",
+  "rollback_deployment",
+  "get_logs",
+  "list_domains",
+  "get_server_usage",
+];
+
 describe("the endpoint list", () => {
   it("is covered by these tests", () => {
-    expect(everyEndpoint(null).map(([id]) => id).sort()).toEqual(ENDPOINTS.map((e) => e.id).sort());
+    expect(everyEndpoint(null).map(([id]) => id).sort()).toEqual([...FIRST_ENDPOINTS].sort());
+    expect(ENDPOINTS.map((e) => e.id)).toEqual(expect.arrayContaining(FIRST_ENDPOINTS));
   });
 });
 
@@ -207,7 +223,7 @@ describe("scope gates", () => {
   });
 
   it("lets a token with exactly the right scope through", async () => {
-    for (const ep of ENDPOINTS.filter((e) => e.method === "GET")) {
+    for (const ep of ENDPOINTS.filter((e) => e.method === "GET" && FIRST_ENDPOINTS.includes(e.id))) {
       const secret = await token([ep.scope]);
       const calls = Object.fromEntries(everyEndpoint(secret));
       scriptReply = () => ({ code: 0, stdout: "load1=0.5\ncpus=2\n" });
@@ -451,10 +467,12 @@ describe("OpenAPI", () => {
 
   it("says what tokens cannot do, and does not describe any of it", async () => {
     const doc = await openapi().json();
-    expect(doc.info.description).toMatch(/terminal/);
+    expect(doc.info.description).toMatch(/removing leftovers/);
     expect(doc.info.description).toMatch(/token management/);
+    expect(doc.info.description).toMatch(/7 days/);
+    // The terminal and files are allowed, under their own scopes: see api-v1-shell.test.ts.
     const paths = Object.keys(doc.paths).join(" ");
-    for (const forbidden of ["terminal", "files", "orphans", "permissions", "sessions", "tokens", "account"]) {
+    for (const forbidden of ["orphans", "permissions", "sessions", "tokens", "account"]) {
       expect(paths).not.toContain(forbidden);
     }
   });

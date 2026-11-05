@@ -1,8 +1,30 @@
 import { z } from "zod";
 import { audit } from "@/server/audit";
-import { requireScope, type Principal, type Scope } from "@/server/api-tokens";
-import { DEPLOY_STATES, RUNTIMES } from "@/server/db/schema";
-import { HttpError, notFound, zodToHttp } from "@/server/http";
+import { requireScope, type Principal } from "@/server/api-tokens";
+import {
+  API_LIMITS,
+  endpoint,
+  enforceApiRate,
+  deploymentIdInput,
+  NOT_FOUND_NOTE,
+  projectIdInput,
+  serverIdInput,
+  type Bucket,
+  type Endpoint,
+} from "@/server/api-v1-kit";
+import {
+  deploymentSchema,
+  domainSchema,
+  latestFor,
+  projectSchema,
+  requireView,
+  toDeployment,
+  toProject,
+  usageSchema,
+} from "@/server/api-v1-models";
+import { EXPANDED_ENDPOINTS } from "@/server/api-v1-more";
+import { SHELL_ENDPOINTS } from "@/server/api-v1-shell";
+import { notFound, zodToHttp } from "@/server/http";
 import {
   cancelDeployment,
   createProjectInput,
@@ -11,15 +33,7 @@ import {
   redeploy,
   rollback,
 } from "@/server/projects";
-import {
-  deploymentView,
-  deploymentViews,
-  domainViews,
-  projectViews,
-  type DeploymentView,
-  type ProjectView,
-} from "@/server/queries";
-import { rateLimiter } from "@/server/rate-limit";
+import { deploymentViews, domainViews, projectViews } from "@/server/queries";
 import { fetchRuntimeLogs, fetchUsage } from "@/server/runtime-info";
 
 /**
@@ -28,170 +42,20 @@ import { fetchRuntimeLogs, fetchUsage } from "@/server/runtime-info";
  * drift apart. Each endpoint's `run` takes the token's Principal and checks the
  * scope before it does anything else.
  *
- * Deliberately NOT here, and never reachable with a token: the terminal, file
- * reads and writes, leftover removal, container permission switches, account
- * and session management, and token management. Those stay with a signed-in browser.
+ * This file holds the first endpoints (projects, deployments, logs, domains,
+ * usage); `api-v1-more.ts` holds the next round (projects, env, domains, hooks,
+ * alerts, analytics, servers, activity) and `api-v1-shell.ts` the terminal and
+ * files, which are tightly limited. All are written with `api-v1-kit.ts`.
+ *
+ * Deliberately NOT here, and never reachable with a token: leftover removal,
+ * container permission switches, account and session management, and token
+ * management. Those stay with a signed-in browser.
  */
 
-// ---------------------------------------------------------------- rate limits
-
-export type Bucket = "read" | "write";
-
-/** Per token, per minute. Writes are the deploy-type actions. */
-export const API_LIMITS: Record<Bucket, { limit: number; windowMs: number }> = {
-  read: { limit: 120, windowMs: 60_000 },
-  write: { limit: 30, windowMs: 60_000 },
-};
-
-/** Count one request for this token in this bucket, or throw 429 with Retry-After. */
-export function enforceApiRate(p: Principal, bucket: Bucket): void {
-  const { limit, windowMs } = API_LIMITS[bucket];
-  const result = rateLimiter().check(`api:${bucket}:${p.tokenId}`, limit, windowMs);
-  if (result.allowed) return;
-  const seconds = result.retryAfterSeconds;
-  throw new HttpError(
-    429,
-    `Too many requests for this token. Wait ${seconds} second${seconds === 1 ? "" : "s"} and try again.`,
-    "rate_limited",
-    { "Retry-After": String(seconds) }
-  );
-}
-
-// ------------------------------------------------------------ response shapes
-
-const iso = z.string().describe("ISO 8601 time, UTC.");
-
-export const deploymentSchema = z
-  .object({
-    id: z.string(),
-    projectId: z.string(),
-    projectSlug: z.string(),
-    env: z.enum(["production", "preview"]).describe("Production for the project's production branch, preview for any other."),
-    state: z.enum(DEPLOY_STATES),
-    source: z.string().describe("What started it: manual, webhook, hook, redeploy or rollback."),
-    branch: z.string(),
-    sha: z.string().nullable().describe("Full commit SHA, once known."),
-    commit: z.string().nullable().describe("Commit message."),
-    pr: z.number().int().nullable().describe("Pull request number for previews built from one."),
-    author: z.string().nullable(),
-    isCurrent: z.boolean().describe("True when this release is the one serving traffic."),
-    cleanedUp: z.boolean().describe("True when the release was removed from the server, so it cannot be rolled back to."),
-    error: z.string().nullable().describe("Why it failed or was canceled."),
-    createdAt: iso,
-    durationMs: z.number().int().nullable().describe("Build time. Null while running or if it never started."),
-  })
-  .meta({ id: "Deployment" });
-export type PublicDeployment = z.infer<typeof deploymentSchema>;
-
-export const deploymentSummarySchema = deploymentSchema
-  .pick({ id: true, env: true, state: true, branch: true, sha: true, commit: true, author: true, createdAt: true, durationMs: true })
-  .meta({ id: "DeploymentSummary" });
-
-export const projectSchema = z
-  .object({
-    id: z.string(),
-    slug: z.string(),
-    name: z.string(),
-    repo: z.string().nullable().describe("GitHub repository as owner/name."),
-    branch: z.string().describe("The production branch."),
-    runtime: z.enum(RUNTIMES),
-    port: z.number().int(),
-    startCommand: z.string().nullable(),
-    healthPath: z.string(),
-    autoDeploy: z.boolean(),
-    serverId: z.string(),
-    monitor: z.enum(["unknown", "up", "down"]).describe("Result of the last uptime check."),
-    state: z.enum(DEPLOY_STATES).nullable().describe("State of the latest deployment, or null if never deployed."),
-    latestDeployment: deploymentSummarySchema.nullable(),
-  })
-  .meta({ id: "Project" });
-export type PublicProject = z.infer<typeof projectSchema>;
-
-export const domainSchema = z
-  .object({
-    id: z.string(),
-    domain: z.string(),
-    status: z.enum(["pending", "valid", "invalid"]),
-    port: z.number().int(),
-    projectId: z.string().nullable(),
-    projectName: z.string().nullable(),
-    serverId: z.string(),
-    cname: z.string().nullable().describe("The CNAME target to point the domain at, or null for built-in domains."),
-  })
-  .meta({ id: "Domain" });
-
-export const usageSchema = z
-  .object({
-    serverId: z.string(),
-    cpuLoad: z.number().nullable().describe("1-minute load average."),
-    cpus: z.number().int().nullable(),
-    memUsedMb: z.number().nullable(),
-    memTotalMb: z.number().nullable(),
-    diskUsedMb: z.number().nullable(),
-    diskTotalMb: z.number().nullable(),
-    checkedAt: iso,
-  })
-  .meta({ id: "Usage" });
-
-function toDeployment(v: DeploymentView): PublicDeployment {
-  return {
-    id: v.id,
-    projectId: v.projectId,
-    projectSlug: v.projectSlug,
-    env: v.env,
-    state: v.rawState as PublicDeployment["state"],
-    source: v.source,
-    branch: v.branch,
-    sha: v.sha,
-    commit: v.commit,
-    pr: v.pr,
-    author: v.author,
-    isCurrent: v.isCurrent,
-    cleanedUp: v.cleanedUp,
-    error: v.error,
-    createdAt: v.createdAt,
-    durationMs: v.durationMs,
-  };
-}
-
-function toProject(v: ProjectView, latest: DeploymentView | null): PublicProject {
-  // Not exposed: deploy hook, analytics key, notification and status page settings,
-  // the Nest username and the domain names (those need the domains:read scope).
-  return {
-    id: v.id,
-    slug: v.slug,
-    name: v.name,
-    repo: v.repo,
-    branch: v.branch,
-    runtime: v.runtime as PublicProject["runtime"],
-    port: v.port,
-    startCommand: v.startCommand,
-    healthPath: v.healthPath,
-    autoDeploy: v.autoDeploy,
-    serverId: v.serverId,
-    monitor: v.monitor,
-    state: latest ? (latest.rawState as PublicDeployment["state"]) : null,
-    latestDeployment: latest
-      ? {
-          id: latest.id,
-          env: latest.env,
-          state: latest.rawState as PublicDeployment["state"],
-          branch: latest.branch,
-          sha: latest.sha,
-          commit: latest.commit,
-          author: latest.author,
-          createdAt: latest.createdAt,
-          durationMs: latest.durationMs,
-        }
-      : null,
-  };
-}
-
-async function latestFor(userId: string, v: ProjectView): Promise<DeploymentView | null> {
-  if (!v.latestDeploymentId) return null;
-  const [d] = await deploymentViews(userId, { projectId: v.id, limit: 1 });
-  return d ?? null;
-}
+export { API_LIMITS, enforceApiRate };
+export type { Bucket, Endpoint };
+export { deploymentSchema, domainSchema, projectSchema, usageSchema };
+export type { PublicDeployment, PublicProject } from "@/server/api-v1-models";
 
 // ------------------------------------------------------------ service layer
 
@@ -248,10 +112,6 @@ export async function apiRollback(p: Principal, deploymentId: string) {
   return { deployment: toDeployment(await requireView(p, created.id)) };
 }
 
-async function requireView(p: Principal, deploymentId: string) {
-  return (await deploymentView(p.userId, deploymentId)).deployment;
-}
-
 export async function apiGetLogs(p: Principal, projectId: string, lines: number) {
   requireScope(p, "logs:read");
   const out = await fetchRuntimeLogs(p.userId, projectId, lines);
@@ -284,86 +144,11 @@ export async function apiServerUsage(p: Principal, serverId: string) {
 // -------------------------------------------------------- endpoint descriptions
 
 const branchName = createProjectInput.shape.productionBranch.removeDefault();
-const projectId = z.string().trim().min(1).max(100).describe("The project's id, from list_projects.");
-const deploymentId = z.string().trim().min(1).max(100).describe("The deployment's id, from list_deployments or a deploy call.");
-const serverId = z.string().trim().min(1).max(100).describe("The server's id (a project's serverId).");
+const projectId = projectIdInput;
+const deploymentId = deploymentIdInput;
+const serverId = serverIdInput;
 
-type Shape = z.ZodRawShape;
-type Empty = Record<never, never>;
-
-export type Endpoint = {
-  /** The MCP tool name and the OpenAPI operationId. */
-  id: string;
-  method: "GET" | "POST";
-  /** OpenAPI path template, relative to /api/v1. */
-  path: string;
-  scope: Scope;
-  bucket: Bucket;
-  /** Success status. */
-  status: 200 | 202;
-  tag: "Projects" | "Deployments" | "Logs" | "Domains" | "Resources";
-  summary: string;
-  /** Written for an AI agent: what it does, when to use it, what comes back. */
-  description: string;
-  pathParams: Shape;
-  query: Shape;
-  body: Shape;
-  /** The whole input, flattened (used by MCP tools and for validation). */
-  input: z.ZodObject;
-  response: z.ZodType;
-  /** Extra error statuses beyond 401, 403 and 429. */
-  errors: number[];
-  readOnly: boolean;
-  destructive: boolean;
-  run: (p: Principal, input: never) => Promise<unknown>;
-};
-
-function endpoint<P extends Shape = Empty, Q extends Shape = Empty, B extends Shape = Empty>(def: {
-  id: string;
-  method: "GET" | "POST";
-  path: string;
-  scope: Scope;
-  bucket: Bucket;
-  status?: 200 | 202;
-  tag: Endpoint["tag"];
-  summary: string;
-  description: string;
-  pathParams?: P;
-  query?: Q;
-  body?: B;
-  response: z.ZodType;
-  errors?: number[];
-  destructive?: boolean;
-  run: (p: Principal, input: z.output<z.ZodObject<P & Q & B>>) => Promise<unknown>;
-}): Endpoint {
-  const pathParams = (def.pathParams ?? {}) as P;
-  const query = (def.query ?? {}) as Q;
-  const body = (def.body ?? {}) as B;
-  return {
-    id: def.id,
-    method: def.method,
-    path: def.path,
-    scope: def.scope,
-    bucket: def.bucket,
-    status: def.status ?? 200,
-    tag: def.tag,
-    summary: def.summary,
-    description: def.description,
-    pathParams,
-    query,
-    body,
-    input: z.object({ ...query, ...body, ...pathParams }).strict(),
-    response: def.response,
-    errors: def.errors ?? [],
-    readOnly: def.method === "GET",
-    destructive: def.destructive ?? false,
-    run: def.run as Endpoint["run"],
-  };
-}
-
-const NOT_FOUND_NOTE = "Returns 404 for an id that does not exist or belongs to someone else.";
-
-export const ENDPOINTS: Endpoint[] = [
+const CORE_ENDPOINTS: Endpoint[] = [
   endpoint({
     id: "list_projects",
     method: "GET",
@@ -515,6 +300,9 @@ export const ENDPOINTS: Endpoint[] = [
     run: (p, i) => apiServerUsage(p, i.serverId),
   }),
 ];
+
+/** Every endpoint, in the order the docs and the agent tool list show them. */
+export const ENDPOINTS: Endpoint[] = [...CORE_ENDPOINTS, ...EXPANDED_ENDPOINTS, ...SHELL_ENDPOINTS];
 
 export function endpointById(id: string): Endpoint | undefined {
   return ENDPOINTS.find((e) => e.id === id);

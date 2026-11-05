@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   TOKEN_CANNOT,
+  TOKEN_LIMITED,
   TOKEN_PLACEHOLDER,
   curlExample,
   mcpConfigSnippet,
@@ -120,8 +121,22 @@ export function DeveloperDocs({ origin }: { origin: string }) {
         <div className="space-y-6">
           <Sub id="agents-can" title="What a token can do">
             <p className={body}>
-              Only what you tick when you create it: read your projects, deployments, logs, domains and resource
-              use, and, if you allow it, start, cancel and roll back deployments.
+              Only what you tick when you create it: read and, if you allow it, change your projects, deployments,
+              environment variables, domains, alerts and resource use. Secret values are write-only: a token can set an
+              environment variable but never read its value back.
+            </p>
+          </Sub>
+
+          <Sub id="agents-limited" title="What a token can do only under tight limits">
+            <ul className="max-w-[62ch] list-disc space-y-1 pl-5 marker:text-muted-foreground">
+              {TOKEN_LIMITED.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            <p className={body}>
+              These use the same switches as the dashboard. A token never turns a switch on, and it does not sign in
+              again: it can use a switch you turned on with a recent Hack Club sign-in until its 7 days end or you turn
+              the switch off.
             </p>
           </Sub>
 

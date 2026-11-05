@@ -15,21 +15,26 @@ const ERROR_TEXT: Record<number, string> = {
   403: "The token does not have the scope this endpoint needs. The message names it.",
   404: "No such item, or it belongs to someone else.",
   409: "The item is in a state that does not allow this.",
-  413: "The request body is too large.",
+  413: "The request body or the file is too large.",
+  503: "Too many terminals are open on the service right now.",
   429: "Too many requests for this token. Wait the number of seconds in the Retry-After header.",
   502: "The container could not be reached.",
 };
 
-const DESCRIPTION = `Read and deploy your Nest Deploy projects from scripts and AI agents.
+const DESCRIPTION = `Manage your Nest Deploy projects from scripts and AI agents: read and change projects, deployments, environment variables, domains and settings, and (with their own tightly limited permissions) use a terminal and files on the container.
 
 Authenticate every request with a personal access token created in Account:
 \`Authorization: Bearer ndp_...\`. Browser sessions (cookies) are never accepted here. Each token has scopes; an endpoint needs the one listed on it.
 
-Rate limits are per token: ${API_LIMITS.read.limit} requests a minute for reads and ${API_LIMITS.write.limit} a minute for deploy-type writes. Past that you get 429 with a Retry-After header.
+Rate limits are per token: ${API_LIMITS.read.limit} requests a minute for reads and ${API_LIMITS.write.limit} a minute for changes. Anything that opens an SSH session to your container (inventory, file access, deployment logs, resource history, opening a terminal) shares a smaller allowance of ${API_LIMITS.ssh.limit} a minute, and terminal keystrokes get ${API_LIMITS.input.limit} a minute. Past that you get 429 with a Retry-After header.
 
 Errors are always JSON: \`{ "error": { "code": "...", "message": "..." } }\`.
 
-**Deliberately not available to tokens:** the terminal, reading or writing files, removing leftovers, container permission switches, account and session management, and token management. These stay with a signed-in browser. The same operations are exposed to AI agents over MCP at \`POST /api/mcp\`.`;
+**Secrets are write-only.** Environment values, notification webhook URLs and token secrets are never returned. A deploy hook URL is returned once, by the call that creates it.
+
+**Tightly limited:** the terminal (\`terminal:use\`) and file changes (\`files:write\`) need the owner to have turned the matching switch on for the server, and a token that holds either expires within 7 days. File changes only reach a project's \`shared/\` folder, never the live release.
+
+**Deliberately not available to tokens:** removing leftovers on the container, container permission switches, account and session management, and token management. These stay with a signed-in browser. The same operations are exposed to AI agents over MCP at \`POST /api/mcp\`.`;
 
 function schemaOf(zod: z.ZodType, io: "input" | "output", defs: Json): Json {
   const { $schema, $defs, ...rest } = z.toJSONSchema(zod, { io, target: "draft-2020-12", reused: "inline" }) as Json;
@@ -115,14 +120,7 @@ export function buildOpenApi(): Json {
     openapi: "3.1.0",
     info: { title: "Nest Deploy API", version: "1.0.0", description: DESCRIPTION },
     servers: [{ url: "/api/v1" }],
-    tags: [
-      { name: "Projects" },
-      { name: "Deployments" },
-      { name: "Logs" },
-      { name: "Domains" },
-      { name: "Resources" },
-      { name: "Meta" },
-    ],
+    tags: [...new Set(ENDPOINTS.map((e) => e.tag)), "Meta"].map((name) => ({ name })),
     security: [{ bearerAuth: [] }],
     paths,
     components: {

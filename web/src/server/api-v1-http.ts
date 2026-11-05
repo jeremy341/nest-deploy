@@ -34,8 +34,6 @@ export function jsonResponse(data: unknown, status = 200, headers: Record<string
   return NextResponse.json(data, { status, headers: { "Cache-Control": "no-store", ...headers } });
 }
 
-const MAX_BODY_BYTES = 16 * 1024;
-
 /** Read a size-capped text body. Nothing is logged. */
 export async function readCappedText(req: Request, maxBytes: number): Promise<string> {
   const declared = Number(req.headers.get("content-length") ?? 0);
@@ -53,7 +51,7 @@ export async function readCappedText(req: Request, maxBytes: number): Promise<st
 async function readBodyFields(ep: Endpoint, req: Request): Promise<Record<string, unknown>> {
   const allowed = Object.keys(ep.body);
   if (allowed.length === 0) return {};
-  const text = (await readCappedText(req, MAX_BODY_BYTES)).trim();
+  const text = (await readCappedText(req, ep.maxBodyBytes)).trim();
   if (text === "") return {};
   let parsed: unknown;
   try {

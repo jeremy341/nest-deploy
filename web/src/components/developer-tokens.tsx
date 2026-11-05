@@ -19,20 +19,26 @@ import {
   ACTIVE_TOKEN_LIMIT,
   DEFAULT_EXPIRY_DAYS,
   DEPLOY_DROP_NOTE,
-  DEPLOY_SCOPE,
-  EXPIRY_OPTIONS,
   NAME_MAX_LENGTH,
   SECRET_NOTE,
+  SHORT_LIVED_NOTE,
   STATUS_LABEL,
   activeCount,
+  allowedExpiries,
   buildTokenPatch,
   canEdit,
+  clampEditExpiry,
+  clampExpiry,
   dropsDeployAccess,
   errorText,
   expiryLabel,
   formatDate,
+  holdsShortLived,
+  isChangeScope,
   lastUsedLabel,
   limitNote,
+  scopeBadge,
+  scopeNote,
   tokenStatus,
   type ExpiryChoice,
   type TokenPatch,
@@ -268,6 +274,7 @@ function CreateForm({
   const nameHintId = `${uid}-name-hint`;
   const scopeErrId = `${uid}-scope-error`;
   const expiryId = `${uid}-expiry`;
+  const expiryNoteId = `${uid}-expiry-note`;
   const blockedId = `${uid}-blocked`;
   const nameRef = useRef<HTMLInputElement>(null);
   const firstScopeRef = useRef<HTMLInputElement>(null);
@@ -290,6 +297,12 @@ function CreateForm({
     });
   }
 
+  // A container permission (terminal, file changes) caps the token at 7 days, so the choice narrows.
+  const pickedList = [...picked];
+  const limited = holdsShortLived(pickedList);
+  const expiryChoices = allowedExpiries(pickedList);
+  const expiryDays = clampExpiry(days, pickedList);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (pending || disabled || blockedBySecret) return;
@@ -309,7 +322,7 @@ function CreateForm({
           name: trimmed,
           // Keep the order the permissions are listed in.
           scopes: scopes.filter((s) => picked.has(s.id)).map((s) => s.id),
-          expiresInDays: days,
+          expiresInDays: expiryDays,
         },
       });
       setName("");
@@ -376,16 +389,24 @@ function CreateForm({
         <Label htmlFor={expiryId}>Expires after</Label>
         <NativeSelect
           id={expiryId}
-          value={days}
+          value={expiryDays}
+          aria-describedby={limited ? expiryNoteId : undefined}
           onChange={(e) => setDays(Number(e.target.value))}
           className="sm:max-w-48"
         >
-          {EXPIRY_OPTIONS.map((o) => (
+          {expiryChoices.map((o) => (
             <option key={o.days} value={o.days}>
               {o.label}
             </option>
           ))}
         </NativeSelect>
+        <div role="status">
+          {limited ? (
+            <p id={expiryNoteId} className="mt-1.5 text-caption text-muted-foreground">
+              {SHORT_LIVED_NOTE}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       {serverError ? (
@@ -428,16 +449,20 @@ function ScopeChecklist({
   onToggle: (id: string, on: boolean) => void;
   firstRef?: React.Ref<HTMLInputElement>;
 }) {
+  const groupId = useId();
   return (
     <ul className="hairline-y overflow-hidden rounded-md shadow-border-base">
       {scopes.map((s, i) => {
-        const deploy = s.id === DEPLOY_SCOPE;
+        const change = isChangeScope(s.id);
+        const badge = scopeBadge(s.id);
+        const note = scopeNote(s.id);
+        const noteId = note ? `${groupId}-${s.id.replace(/\W/g, "-")}-note` : undefined;
         return (
           <li key={s.id}>
             <label
               className={cn(
                 "flex min-h-11 cursor-pointer items-start gap-3 px-3 py-2.5 max-sm:min-h-12",
-                deploy && "bg-[var(--tone-warning-bg)]"
+                change && "bg-[var(--tone-warning-bg)]"
               )}
             >
               <input
@@ -445,19 +470,25 @@ function ScopeChecklist({
                 type="checkbox"
                 className="mt-1 shrink-0"
                 checked={picked.has(s.id)}
+                aria-describedby={noteId}
                 onChange={(e) => onToggle(s.id, e.target.checked)}
               />
               <span className="min-w-0">
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span>{s.label}</span>
-                  {deploy ? (
+                  {badge ? (
                     <span className="inline-flex items-center gap-1 rounded-sm bg-background px-1.5 py-0.5 text-caption font-medium shadow-[0_0_0_1px_var(--tone-warning-ring)]">
                       <WarningIcon aria-hidden="true" className="size-3 text-[var(--tone-warning-icon)]" />
-                      Can start builds
+                      {badge}
                     </span>
                   ) : null}
                 </span>
                 <span className="block font-mono text-caption text-muted-foreground">{s.id}</span>
+                {note ? (
+                  <span id={noteId} className="mt-1 block max-w-[62ch] text-caption text-muted-foreground">
+                    {note}
+                  </span>
+                ) : null}
               </span>
             </label>
           </li>
@@ -556,7 +587,7 @@ function TokenRow({
                 key={s}
                 className={cn(
                   "rounded-sm px-1.5 py-0.5 font-mono text-caption",
-                  s === DEPLOY_SCOPE
+                  isChangeScope(s)
                     ? "bg-[var(--tone-warning-bg)] shadow-[0_0_0_1px_var(--tone-warning-ring)]"
                     : "bg-muted text-muted-foreground"
                 )}
@@ -600,6 +631,7 @@ function TokenEditor({
   const nameErrId = `${id}-name-error`;
   const scopeErrId = `${id}-scope-error`;
   const expiryId = `${id}-expiry`;
+  const expiryNoteId = `${id}-expiry-note`;
   const nameRef = useRef<HTMLInputElement>(null);
   const firstScopeRef = useRef<HTMLInputElement>(null);
 
@@ -618,6 +650,12 @@ function TokenEditor({
   // Keep the order the permissions are listed in.
   const chosen = scopes.filter((s) => picked.has(s.id)).map((s) => s.id);
   const dropsDeploy = dropsDeployAccess(token.scopes, chosen);
+
+  // A container permission caps the token at 7 days. "Keep" only stays while it already ends that soon.
+  const limited = holdsShortLived(chosen);
+  const keepAllowed = clampEditExpiry("keep", chosen, token) === "keep";
+  const expiryChoices = allowedExpiries(chosen);
+  const expiryValue = clampEditExpiry(expiry, chosen, token);
 
   function toggle(scopeId: string, on: boolean) {
     setScopeError(null);
@@ -640,7 +678,7 @@ function TokenEditor({
     if (nErr) return nameRef.current?.focus();
     if (sErr) return firstScopeRef.current?.focus();
 
-    const patch = buildTokenPatch(token, { name, scopes: chosen, expiry });
+    const patch = buildTokenPatch(token, { name, scopes: chosen, expiry: expiryValue });
     if (Object.keys(patch).length === 0) return onCancel();
 
     setPending(true);
@@ -709,12 +747,13 @@ function TokenEditor({
         <Label htmlFor={expiryId}>Expires after</Label>
         <NativeSelect
           id={expiryId}
-          value={expiry}
+          value={expiryValue}
+          aria-describedby={limited ? expiryNoteId : undefined}
           onChange={(e) => setExpiry(e.target.value === "keep" ? "keep" : (Number(e.target.value) as ExpiryChoice))}
           className="sm:max-w-64"
         >
-          <option value="keep">Keep current ({formatDate(token.expiresAt)})</option>
-          {EXPIRY_OPTIONS.map((o) => (
+          {keepAllowed ? <option value="keep">Keep current ({formatDate(token.expiresAt)})</option> : null}
+          {expiryChoices.map((o) => (
             <option key={o.days} value={o.days}>
               {o.label} from now
             </option>
@@ -723,6 +762,13 @@ function TokenEditor({
         <p className="mt-1.5 text-caption text-muted-foreground">
           A new expiry counts from today, so it can make the token last longer or end sooner.
         </p>
+        <div role="status">
+          {limited ? (
+            <p id={expiryNoteId} className="mt-1 text-caption text-muted-foreground">
+              {SHORT_LIVED_NOTE}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       {serverError ? (

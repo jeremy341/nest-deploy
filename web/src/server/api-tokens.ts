@@ -10,29 +10,68 @@ import { HttpError, notFound } from "@/server/http";
  *
  * A token is a bearer secret shown once. Only its SHA-256 is stored. Each token
  * has a short list of scopes and an expiry. Tokens can NOT create other tokens,
- * and they can never reach the terminal, file changes, leftover removal, the
- * permission switches, or account and session management: those stay with a
- * signed-in browser on purpose.
+ * and they can never reach leftover removal, the permission switches, or account,
+ * session and token management: those stay with a signed-in browser on purpose.
+ * The terminal and file scopes exist but are tight: they last 7 days at most
+ * (see `SHORT_LIVED_SCOPES`) and only work while the owner has the matching
+ * per-server switch on.
  */
 
 export const SCOPES = [
   "projects:read",
+  "projects:write",
   "deployments:read",
   "deployments:write",
   "logs:read",
+  "env:read",
+  "env:write",
   "domains:read",
+  "domains:write",
+  "notifications:read",
+  "alerts:read",
+  "analytics:read",
+  "activity:read",
   "resources:read",
+  "container:read",
+  "files:read",
+  "files:write",
+  "terminal:use",
 ] as const;
 export type Scope = (typeof SCOPES)[number];
 
 export const SCOPE_LABEL: Record<Scope, string> = {
-  "projects:read": "Read projects and their settings",
-  "deployments:read": "Read deployments",
-  "deployments:write": "Deploy, redeploy, cancel and roll back",
+  "projects:read": "Read projects, their settings and status page",
+  "projects:write": "Create, change and delete projects, including build and start commands",
+  "deployments:read": "Read deployments and build output",
+  "deployments:write": "Deploy, redeploy, cancel and roll back, and replace or revoke the deploy hook",
   "logs:read": "Read runtime logs",
+  "env:read": "List environment variable names (never their values)",
+  "env:write": "Set and remove environment variables",
   "domains:read": "Read domains",
-  "resources:read": "Read CPU, memory and disk",
+  "domains:write": "Add, check and remove domains",
+  "notifications:read": "Read notification settings and send a test message",
+  "alerts:read": "Read alert settings and history",
+  "analytics:read": "Read visitor analytics",
+  "activity:read": "Read your activity log",
+  "resources:read": "Read CPU, memory and disk, now and over time",
+  "container:read": "List servers and see what is on the container (read only)",
+  "files:read": "List and read files in a project's folder on the container",
+  "files:write": "Create, change, rename and delete files in a project's shared/ folder (never the live release)",
+  "terminal:use": "Open and use a shell on the container. Commands run for real",
 };
+
+/**
+ * Scopes that act on the container itself. A token holding one lives at most
+ * `SHORT_LIVED_MAX_DAYS` days, enforced when it is created and when it is edited.
+ * The owner's per-server switch (terminal, file changes) must also be on.
+ */
+export const SHORT_LIVED_SCOPES: readonly Scope[] = ["terminal:use", "files:write"];
+export const SHORT_LIVED_MAX_DAYS = 7;
+
+export const SHORT_LIVED_NOTE = `A token with the terminal or file change permission expires in ${SHORT_LIVED_MAX_DAYS} days at most.`;
+
+export const holdsShortLivedScope = (scopes: readonly string[]) =>
+  scopes.some((s) => (SHORT_LIVED_SCOPES as readonly string[]).includes(s));
 
 export const TOKEN_PREFIX = "ndp_";
 const MAX_TOKENS_PER_USER = 25;
@@ -41,8 +80,8 @@ const DAY = 86_400_000;
 export const createTokenInput = z.object({
   name: z.string().trim().min(1, "Give the token a name.").max(60),
   scopes: z.array(z.enum(SCOPES)).min(1, "Pick at least one permission.").max(SCOPES.length),
-  /** Days until it expires. */
-  expiresInDays: z.union([z.literal(7), z.literal(30), z.literal(90), z.literal(365)]).default(90),
+  /** Days until it expires. Left out, it is 90 days, or 7 for a token that holds a container scope. */
+  expiresInDays: z.union([z.literal(7), z.literal(30), z.literal(90), z.literal(365)]).optional(),
 });
 
 /**
@@ -111,6 +150,12 @@ export async function createApiToken(userId: string, raw: unknown, now = new Dat
     throw new HttpError(400, `You can have up to ${MAX_TOKENS_PER_USER} active tokens. Revoke one first.`, "limit");
   }
 
+  const short = holdsShortLivedScope(input.scopes);
+  const days = input.expiresInDays ?? (short ? SHORT_LIVED_MAX_DAYS : 90);
+  if (short && days > SHORT_LIVED_MAX_DAYS) {
+    throw new HttpError(400, `${SHORT_LIVED_NOTE} Pick 7 days, or remove that permission.`, "short_lived");
+  }
+
   const secret = `${TOKEN_PREFIX}${randomToken(32)}`;
   const id = newId();
   const row = {
@@ -122,7 +167,7 @@ export async function createApiToken(userId: string, raw: unknown, now = new Dat
     scopes: JSON.stringify([...new Set(input.scopes)]),
     createdAt: now,
     lastUsedAt: null,
-    expiresAt: new Date(now.getTime() + input.expiresInDays * DAY),
+    expiresAt: new Date(now.getTime() + days * DAY),
     revokedAt: null,
   };
   await db.insert(schema.apiTokens).values(row);
@@ -188,6 +233,18 @@ export async function updateApiToken(userId: string, tokenId: string, raw: unkno
     changed.push("expiry");
   }
   if (changed.length === 0) return summarize(current, now.getTime());
+
+  // The cap holds for what the token will be, not for what was sent: adding a container
+  // scope to a long-lived token, or lengthening a short-lived one, are both refused.
+  const nextScopes = patch.scopes !== undefined ? parseScopes(patch.scopes) : parseScopes(current.scopes);
+  const nextExpiry = patch.expiresAt ?? current.expiresAt;
+  if (holdsShortLivedScope(nextScopes) && nextExpiry.getTime() > now.getTime() + SHORT_LIVED_MAX_DAYS * DAY) {
+    throw new HttpError(
+      400,
+      `${SHORT_LIVED_NOTE} Set the expiry to 7 days in the same change, or remove that permission.`,
+      "short_lived"
+    );
+  }
 
   // Guard on "not revoked" again so a revoke that lands mid-edit wins.
   const rows = await db
