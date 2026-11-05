@@ -6,6 +6,9 @@ import {
   CubeIcon,
   GearSixIcon,
   BookOpenTextIcon,
+  FolderOpenIcon,
+  TerminalWindowIcon,
+  CubeFocusIcon,
   GlobeSimpleIcon,
   HardDrivesIcon,
   HouseLineIcon,
@@ -76,6 +79,12 @@ const TEAM_ITEMS: NavItem[] = [
     active: (p) => p.startsWith("/activity"),
   },
   {
+    href: "/container",
+    label: "Container",
+    icon: CubeFocusIcon,
+    active: (p) => p.startsWith("/container"),
+  },
+  {
     href: "/connect",
     label: "Connect",
     icon: HardDrivesIcon,
@@ -90,6 +99,7 @@ const TEAM_TITLES: Record<string, string> = {
   "/resources": "Resources",
   "/domains": "Domains",
   "/activity": "Activity",
+  "/container": "Container",
   "/connect": "Connect a Server",
 };
 
@@ -113,6 +123,18 @@ function projectItems(slug: string): NavItem[] {
       label: "Analytics",
       icon: ChartLineUpIcon,
       active: (p) => p.startsWith(`${base}/analytics`),
+    },
+    {
+      href: `${base}/files`,
+      label: "Files",
+      icon: FolderOpenIcon,
+      active: (p) => p.startsWith(`${base}/files`),
+    },
+    {
+      href: `${base}/terminal`,
+      label: "Terminal",
+      icon: TerminalWindowIcon,
+      active: (p) => p.startsWith(`${base}/terminal`),
     },
     {
       href: `${base}/settings`,
@@ -143,6 +165,12 @@ export function navFor(pathname: string): NavContext {
     } else if (rest.startsWith("/analytics")) {
       title = "Project Analytics";
       crumb = "Analytics";
+      backHref = `/projects/${slug}`;
+    } else if (rest.startsWith("/files")) {
+      title = "Files";
+      backHref = `/projects/${slug}`;
+    } else if (rest.startsWith("/terminal")) {
+      title = "Terminal";
       backHref = `/projects/${slug}`;
     } else if (rest.startsWith("/settings")) {
       title = "Project Settings";

@@ -52,6 +52,13 @@ export const LABELS: Record<string, string> = {
   "account.sessions_revoke_all": "Signed out all other browsers",
   "monitor.down": "Detected downtime on",
   "monitor.up": "Detected recovery of",
+  "container.orphan_remove": "Removed a leftover from the container",
+  "terminal.open": "Opened a terminal on",
+  "terminal.close": "Closed a terminal on",
+  "file.write": "Saved a file on",
+  "file.mkdir": "Created a folder on",
+  "file.rename": "Renamed a file on",
+  "file.delete": "Deleted a file on",
 };
 
 export function describeAction(action: string): string {
