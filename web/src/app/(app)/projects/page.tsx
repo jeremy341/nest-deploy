@@ -6,6 +6,7 @@ import { ProjectsSkeleton } from "@/components/skeletons/projects";
 import { StatusDot, StatusIndicator } from "@/components/status-dot";
 import { UsageCard } from "@/components/usage-card";
 import { requireUser } from "@/server/auth/current";
+import { alertOverview } from "@/server/notify";
 import { deploymentViews, projectViews, serverViews } from "@/server/queries";
 
 export const metadata = { title: "Projects" };
@@ -34,22 +35,40 @@ function SideCard({
   );
 }
 
-/** Plain sentences for any resource that is nearly used up. */
-function resourcePressure(u: NonNullable<Awaited<ReturnType<typeof serverViews>>[number]["usage"]>) {
+/** Plain sentences for any resource that has reached the limit set in a project's alerts. */
+function resourcePressure(
+  u: NonNullable<Awaited<ReturnType<typeof serverViews>>[number]["usage"]>,
+  limits: { diskPct: number; memoryPct: number; cpuPct: number }
+) {
   const out: { label: string; text: string }[] = [];
-  if (u.diskUsedMb !== null && u.diskTotalMb && u.diskUsedMb / u.diskTotalMb >= 0.9) {
+  if (u.diskUsedMb !== null && u.diskTotalMb && (u.diskUsedMb / u.diskTotalMb) * 100 >= limits.diskPct) {
     out.push({
       label: "Disk",
-      text: "Disk is over 90% full. Old releases and logs are the usual cause.",
+      text: `Disk is over ${limits.diskPct}% full. Old releases and logs are the usual cause.`,
     });
   }
-  if (u.memUsedMb !== null && u.memTotalMb && u.memUsedMb / u.memTotalMb >= 0.9) {
+  if (u.memUsedMb !== null && u.memTotalMb && (u.memUsedMb / u.memTotalMb) * 100 >= limits.memoryPct) {
     out.push({
       label: "Memory",
-      text: "Memory is over 90% used. Apps may be restarted by the system.",
+      text: `Memory is over ${limits.memoryPct}% used. Apps may be restarted by the system.`,
+    });
+  }
+  if (u.cpuLoad !== null && u.cpus && (u.cpuLoad / u.cpus) * 100 >= limits.cpuPct) {
+    out.push({
+      label: "CPU",
+      text: `CPU load is over ${limits.cpuPct}% of the cores. Apps may answer slowly.`,
     });
   }
   return out;
+}
+
+function mutedUntil(iso: string) {
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function ProjectsPage() {
@@ -62,16 +81,17 @@ export default function ProjectsPage() {
 
 async function ProjectsContent() {
   const user = await requireUser();
-  const [projects, servers, recent] = await Promise.all([
+  const [projects, servers, recent, alerts] = await Promise.all([
     projectViews(user.id),
     serverViews(user.id),
     deploymentViews(user.id, { limit: 5 }),
+    alertOverview(user.id),
   ]);
   const down = projects.filter((p) => p.monitor === "down");
   const failing = projects.filter((p) => p.state === "error" && p.monitor !== "down");
-  const pressure = servers[0]?.usage ? resourcePressure(servers[0].usage) : [];
+  const pressure = servers[0]?.usage ? resourcePressure(servers[0].usage, alerts.limits) : [];
 
-  const needsAttention = down.length + failing.length + pressure.length > 0;
+  const needsAttention = down.length + failing.length + pressure.length + alerts.muted.length > 0;
 
   return (
     <div className="motion-enter space-y-6">
@@ -126,6 +146,25 @@ async function ProjectsContent() {
                               />
                               <p className="mt-0.5 text-muted-foreground">
                                 The latest deployment failed. Open it to see why.
+                              </p>
+                            </li>
+                          ))}
+                          {alerts.muted.map((p) => (
+                            <li key={`muted-${p.id}`} className="px-4 py-3">
+                              <StatusIndicator
+                                tone="neutral"
+                                label={
+                                  <Link
+                                    href={`/projects/${p.slug}/settings#alerts-heading`}
+                                    className="text-foreground underline-offset-4 hover:underline"
+                                  >
+                                    {p.name}
+                                  </Link>
+                                }
+                              />
+                              <p className="mt-0.5 text-muted-foreground">
+                                Alerts are paused
+                                {p.until ? ` until ${mutedUntil(p.until)}` : " until you resume them"}.
                               </p>
                             </li>
                           ))}
