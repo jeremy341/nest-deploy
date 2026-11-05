@@ -13,7 +13,7 @@ import {
   PERMISSION_KEYS,
   PERMISSION_LABELS,
   PERMISSION_STATE,
-  needsTypedConfirm,
+  needsFreshSignIn,
   normalizePermissions,
   type ContainerPermissions,
   type PermissionKey,
@@ -189,7 +189,7 @@ function PermissionRow({
 
   async function change(next: boolean) {
     // Turning the terminal or file changes on needs a fresh Hack Club sign-in first.
-    if (needsTypedConfirm(permKey) && next) {
+    if (needsFreshSignIn(permKey) && next) {
       const back = `/account?turn=${permKey}&server=${server.id}#container-permissions-heading`;
       window.location.assign(`/api/auth/reauth?next=${encodeURIComponent(back)}`);
       return;

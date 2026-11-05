@@ -7,7 +7,7 @@ import {
   PERMISSION_DESCRIPTIONS,
   PERMISSION_KEYS,
   PERMISSION_LABELS,
-  needsTypedConfirm,
+  needsFreshSignIn,
   normalizePermissions,
   permissionsOrDefault,
   typedConfirmFor,
@@ -132,9 +132,9 @@ describe("copy", () => {
   });
 
   it("asks for the typed Nest username for the terminal and for file changes, not for leftovers", () => {
-    expect(needsTypedConfirm("terminal")).toBe(true);
-    expect(needsTypedConfirm("fileWrites")).toBe(true);
-    expect(needsTypedConfirm("orphanRemoval")).toBe(false);
+    expect(needsFreshSignIn("terminal")).toBe(true);
+    expect(needsFreshSignIn("fileWrites")).toBe(true);
+    expect(needsFreshSignIn("orphanRemoval")).toBe(false);
   });
 
   it("words the file changes confirmation around the running code and a read-only live release", () => {

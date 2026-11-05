@@ -96,19 +96,19 @@ export async function apiDeployBranch(p: Principal, projectId: string, branch?: 
 
 export async function apiRedeploy(p: Principal, deploymentId: string) {
   requireScope(p, "deployments:write");
-  const created = await redeploy(p.userId, deploymentId);
+  const created = await redeploy(p.userId, deploymentId, { tokenId: p.tokenId });
   return { deployment: toDeployment(await requireView(p, created.id)) };
 }
 
 export async function apiCancelDeployment(p: Principal, deploymentId: string) {
   requireScope(p, "deployments:write");
-  await cancelDeployment(p.userId, deploymentId);
+  await cancelDeployment(p.userId, deploymentId, { tokenId: p.tokenId });
   return { deployment: toDeployment(await requireView(p, deploymentId)) };
 }
 
 export async function apiRollback(p: Principal, deploymentId: string) {
   requireScope(p, "deployments:write");
-  const created = await rollback(p.userId, deploymentId);
+  const created = await rollback(p.userId, deploymentId, { tokenId: p.tokenId });
   return { deployment: toDeployment(await requireView(p, created.id)) };
 }
 

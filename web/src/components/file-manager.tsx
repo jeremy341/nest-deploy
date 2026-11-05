@@ -528,7 +528,7 @@ export function FileManager({ projectId, slug, projectName, initialPath, fileWri
             <p>
               File changes are off by default, because a change to a file can change the code your app runs. You can
               still browse, read and download files. To turn them on, open Account, find Container permissions and
-              type your Nest username to confirm.
+              switch File changes on. You will be asked to sign in with Hack Club again first.
             </p>
             <Link
               href={PERMISSIONS_HREF}

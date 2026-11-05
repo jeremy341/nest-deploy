@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -74,6 +74,12 @@ export function DeploymentsView({
   const [shown, setShown] = useState(PAGE);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [comparing, setComparing] = useState(false);
+  // The clock is read after mount, so the server render and the first client render match.
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    const id = setTimeout(() => setNow(Date.now()), 0);
+    return () => clearTimeout(id);
+  }, []);
   const set = <K extends keyof DeploymentQuery>(key: K, value: DeploymentQuery[K]) => {
     setQuery((q) => ({ ...q, [key]: value }));
     setShown(PAGE); // a new filter starts again from the top of the list
@@ -145,7 +151,7 @@ export function DeploymentsView({
   const picked = visible.filter((d) => selected.has(d.id));
   const allShownPicked = page.length > 0 && page.every((d) => selected.has(d.id));
   const somePicked = page.some((d) => selected.has(d.id));
-  const allowed = bulkSummary(picked);
+  const allowed = bulkSummary(picked, now ?? 0);
   const pair = canCompare(picked.length) ? ([picked[0], picked[1]] as const) : null;
 
   /** Tell the person what happened per item, then refresh the list. */

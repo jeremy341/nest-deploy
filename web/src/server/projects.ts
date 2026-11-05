@@ -376,10 +376,18 @@ export async function deployBranch(
   });
 }
 
+/** Who asked for an action: the API token that made it, when one did. */
+export type ActionVia = { tokenId?: string };
+
+/** The audit detail for an API call, so the log shows which token did it. */
+function viaMeta(via: ActionVia): Record<string, string> {
+  return via.tokenId ? { via: "api", token: via.tokenId } : {};
+}
+
 /** Build the same commit again. */
-export async function redeploy(userId: string, deploymentId: string) {
+export async function redeploy(userId: string, deploymentId: string, via: ActionVia = {}) {
   const { project, dep } = await ownedDeployment(userId, deploymentId);
-  await audit(userId, "deploy.redeploy", project.id, { branch: dep.branch });
+  await audit(userId, "deploy.redeploy", project.id, { branch: dep.branch, ...viaMeta(via) });
   return enqueueDeployment(project, {
     env: dep.env,
     source: "redeploy",
@@ -392,7 +400,7 @@ export async function redeploy(userId: string, deploymentId: string) {
 }
 
 /** Point production back at an earlier release that is still on the server. */
-export async function rollback(userId: string, deploymentId: string) {
+export async function rollback(userId: string, deploymentId: string, via: ActionVia = {}) {
   const { project, dep } = await ownedDeployment(userId, deploymentId);
   if (dep.env !== "production") {
     throw new HttpError(400, "Only production deployments can be rolled back to.", "validation");
@@ -406,7 +414,10 @@ export async function rollback(userId: string, deploymentId: string) {
   if (dep.isCurrent) {
     throw new HttpError(409, "That deployment is already live.", "conflict");
   }
-  await audit(userId, "deploy.rollback", project.id, { sha: dep.commitSha?.slice(0, 7) ?? null });
+  await audit(userId, "deploy.rollback", project.id, {
+    sha: dep.commitSha?.slice(0, 7) ?? null,
+    ...viaMeta(via),
+  });
   return enqueueDeployment(
     project,
     {
@@ -424,7 +435,7 @@ export async function rollback(userId: string, deploymentId: string) {
   );
 }
 
-export async function cancelDeployment(userId: string, deploymentId: string) {
+export async function cancelDeployment(userId: string, deploymentId: string, via: ActionVia = {}) {
   const { project, dep } = await ownedDeployment(userId, deploymentId);
   const db = await getDb();
   if (!["queued", "building", "deploying"].includes(dep.state)) {
@@ -438,7 +449,7 @@ export async function cancelDeployment(userId: string, deploymentId: string) {
     .update(schema.jobs)
     .set({ state: "failed", error: "Canceled" })
     .where(and(eq(schema.jobs.deploymentId, dep.id), eq(schema.jobs.state, "queued")));
-  await audit(userId, "deploy.cancel", project.id, { branch: dep.branch });
+  await audit(userId, "deploy.cancel", project.id, { branch: dep.branch, ...viaMeta(via) });
 }
 
 export async function ownedDeployment(userId: string, deploymentId: string) {

@@ -72,10 +72,10 @@ export const ENABLE_COPY: Record<"terminal" | "fileWrites", EnableCopy> = {
   },
 };
 
-/** The switches that are confirmed by typing the Nest username before they turn on. */
-export type TypedConfirmKey = keyof typeof ENABLE_COPY;
+/** The switches that need a fresh Hack Club sign-in before they turn on. */
+export type FreshSignInKey = keyof typeof ENABLE_COPY;
 
-export function needsTypedConfirm(key: PermissionKey): key is TypedConfirmKey {
+export function needsFreshSignIn(key: PermissionKey): key is FreshSignInKey {
   return Object.hasOwn(ENABLE_COPY, key);
 }
 

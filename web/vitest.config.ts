@@ -7,6 +7,9 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts"],
     setupFiles: ["src/server/test/setup.ts"],
+    // Setup hooks create a database and a mock SSH host, which can take a while when
+    // every test file runs at once on a busy machine.
     testTimeout: 20000,
+    hookTimeout: 60000,
   },
 });
